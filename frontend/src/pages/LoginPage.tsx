@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { authApi } from "../api/client";
+import { useAppStore } from "../store/useAppStore";
 import { Sparkles, LogIn, UserPlus, ArrowRight } from "lucide-react";
 
 export default function LoginPage() {
     const navigate = useNavigate();
+    const fetchPersonas = useAppStore((s) => s.fetchPersonas);
     const [needsSetup, setNeedsSetup] = useState<boolean | null>(null);
     const [mode, setMode] = useState<"login" | "register" | "setup">("login");
     const [email, setEmail] = useState("");
@@ -68,6 +70,7 @@ export default function LoginPage() {
                     is_admin: result.is_admin,
                 }),
             );
+            await fetchPersonas();
             navigate("/", { replace: true });
         } catch (err: unknown) {
             const msg =

@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { useEffect } from "react";
 import Layout from "./components/Layout";
 import DashboardPage from "./pages/DashboardPage";
@@ -24,11 +24,13 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
 
 export default function App() {
     const fetchPersonas = useAppStore((s) => s.fetchPersonas);
+    const personas = useAppStore((s) => s.personas);
+    const location = useLocation();
     const token = localStorage.getItem("mm_token");
 
     useEffect(() => {
-        if (token) fetchPersonas();
-    }, [fetchPersonas, token]);
+        if (token && personas.length === 0) fetchPersonas();
+    }, [fetchPersonas, token, location.pathname, personas.length]);
 
     return (
         <Routes>
