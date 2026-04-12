@@ -1,0 +1,145 @@
+### Virtual Self Lab — Sample API Requests
+### Use with any HTTP client (curl, httpie, VS Code REST Client, etc.)
+
+### ═══════════════════════════════════════
+### 1. Health Check
+### ═══════════════════════════════════════
+
+# GET http://localhost:8000/api/v1/admin/health
+
+### ═══════════════════════════════════════
+### 2. Create Persona
+### ═══════════════════════════════════════
+
+# POST http://localhost:8000/api/v1/personas/
+# Content-Type: application/json
+#
+# {
+#   "name": "Simone",
+#   "identity_summary": "Direct, warm, slightly sarcastic. Values authenticity.",
+#   "autonomy_level": "medium",
+#   "confidence_threshold": 0.7,
+#   "never_say": ["I hope this email finds you well", "Absolutely!"],
+#   "tone": {"default": "warm-direct"},
+#   "values": {"core": ["authenticity", "directness"]}
+# }
+
+### ═══════════════════════════════════════
+### 3. List Personas
+### ═══════════════════════════════════════
+
+# GET http://localhost:8000/api/v1/personas/
+
+### ═══════════════════════════════════════
+### 4. Create Memory
+### ═══════════════════════════════════════
+
+# POST http://localhost:8000/api/v1/memories/
+# Content-Type: application/json
+#
+# {
+#   "persona_id": "<PERSONA_ID>",
+#   "memory_type": "relational",
+#   "title": "Close friend: Marco",
+#   "content": "Marco is my closest friend since university.",
+#   "tags": ["friend", "relationship"],
+#   "linked_entities": ["Marco", "University"]
+# }
+
+### ═══════════════════════════════════════
+### 5. Create Writing Sample
+### ═══════════════════════════════════════
+
+# POST http://localhost:8000/api/v1/writing-samples/
+# Content-Type: application/json
+#
+# {
+#   "persona_id": "<PERSONA_ID>",
+#   "content": "hey, yeah i saw that. honestly not sure what to think about it yet.",
+#   "context_type": "friend",
+#   "tone": "reflective"
+# }
+
+### ═══════════════════════════════════════
+### 6. Create Policy
+### ═══════════════════════════════════════
+
+# POST http://localhost:8000/api/v1/policies/
+# Content-Type: application/json
+#
+# {
+#   "persona_id": "<PERSONA_ID>",
+#   "policy_type": "forbidden_pattern",
+#   "name": "No fake enthusiasm",
+#   "description": "Never use 'Amazing!', 'Absolutely!', etc."
+# }
+
+### ═══════════════════════════════════════
+### 7. Ingest Memory to Graph
+### ═══════════════════════════════════════
+
+# POST http://localhost:8000/api/v1/graph/ingest/memory?persona_id=<PERSONA_ID>&memory_id=<MEMORY_ID>
+
+### ═══════════════════════════════════════
+### 8. Rebuild Graph
+### ═══════════════════════════════════════
+
+# POST http://localhost:8000/api/v1/graph/rebuild?persona_id=<PERSONA_ID>
+
+### ═══════════════════════════════════════
+### 9. Query Graph
+### ═══════════════════════════════════════
+
+# POST http://localhost:8000/api/v1/graph/query
+# Content-Type: application/json
+#
+# {
+#   "persona_id": "<PERSONA_ID>",
+#   "query": "Marco",
+#   "limit": 50
+# }
+
+### ═══════════════════════════════════════
+### 10. Run Clone (Testing Lab)
+### ═══════════════════════════════════════
+
+# POST http://localhost:8000/api/v1/testing/run
+# Content-Type: application/json
+#
+# {
+#   "persona_id": "<PERSONA_ID>",
+#   "message": "hey! what are you up to this weekend?",
+#   "context_type": "friend"
+# }
+
+### ═══════════════════════════════════════
+### 11. Create Test Scenario
+### ═══════════════════════════════════════
+
+# POST http://localhost:8000/api/v1/testing/scenarios
+# Content-Type: application/json
+#
+# {
+#   "persona_id": "<PERSONA_ID>",
+#   "title": "Friend asks about weekend",
+#   "context_type": "friend",
+#   "input_message": "hey! what are you up to this weekend?",
+#   "gold_answer": "yeah maybe, depends on how tired i am. what did you have in mind?"
+# }
+
+### ═══════════════════════════════════════
+### 12. Export Persona Bundle
+### ═══════════════════════════════════════
+
+# GET http://localhost:8000/api/v1/io/export/persona/<PERSONA_ID>
+
+### ═══════════════════════════════════════
+### HAPPY PATH (end-to-end):
+### 1. Create persona (POST /personas/)
+### 2. Create memories (POST /memories/)
+### 3. Create writing samples (POST /writing-samples/)
+### 4. Create policies (POST /policies/)
+### 5. Rebuild graph (POST /graph/rebuild?persona_id=...)
+### 6. Run clone (POST /testing/run)
+### 7. Compare clone response to gold answer
+### ═══════════════════════════════════════

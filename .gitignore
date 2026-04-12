@@ -1,0 +1,45 @@
+# ── Python ──────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+*.egg
+dist/
+build/
+.venv/
+venv/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+*.so
+
+# ── Node ────────────────────────────────────────────
+node_modules/
+dist/
+.npm
+.yarn/
+
+# ── Environment ────────────────────────────────────
+.env
+.env.local
+.env.*.local
+
+# ── IDE ─────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ── OS ──────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# ── Docker ──────────────────────────────────────────
+pgdata/
+neo4jdata/
+
+# ── Logs ────────────────────────────────────────────
+*.log
+logs/
