@@ -204,6 +204,15 @@ export interface RebuildProgress {
     status: "processing" | "done";
 }
 
+export interface ImprovementSuggestion {
+    type: "memory" | "policy" | "writing_sample" | "never_say";
+    action: string;
+    severity: "high" | "medium" | "low";
+    title: string;
+    reason: string;
+    payload: Record<string, unknown>;
+}
+
 export interface CloneRequest {
     persona_id: string;
     message: string;
@@ -224,6 +233,13 @@ export interface CloneResponse {
     alternative_responses: string[];
     test_result_id?: string | null;
     evaluation?: Evaluation | null;
+    improvement_suggestions?: ImprovementSuggestion[];
+}
+
+export interface ApplyFixResponse {
+    applied: boolean;
+    detail: string;
+    created_id?: string | null;
 }
 
 export interface HealthStatus {

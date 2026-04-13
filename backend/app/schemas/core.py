@@ -251,6 +251,18 @@ class GraphQueryRequest(BaseModel):
     limit: int = 100
 
 
+# ── Improvement suggestions ──────────────────────────────
+
+
+class ImprovementSuggestion(BaseModel):
+    type: str  # memory, policy, writing_sample, never_say
+    action: str  # create, update
+    severity: str  # high, medium, low
+    title: str
+    reason: str
+    payload: dict
+
+
 # ── Clone request / response ────────────────────────────
 
 
@@ -274,3 +286,4 @@ class CloneResponse(BaseModel):
     alternative_responses: list[str] = []
     test_result_id: UUID | None = None
     evaluation: EvaluationRead | None = None
+    improvement_suggestions: list[ImprovementSuggestion] = []

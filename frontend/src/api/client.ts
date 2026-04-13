@@ -9,6 +9,8 @@ import type {
     TestScenario,
     CloneRequest,
     CloneResponse,
+    ImprovementSuggestion,
+    ApplyFixResponse,
     GraphSubgraph,
     Evaluation,
     HealthStatus,
@@ -63,7 +65,9 @@ export const authApi = {
     login: (data: { email: string; password: string }) =>
         api.post<AuthToken>("/auth/login", data).then((r) => r.data),
     getProviderSettings: () =>
-        api.get<ProviderSettings>("/auth/provider-settings").then((r) => r.data),
+        api
+            .get<ProviderSettings>("/auth/provider-settings")
+            .then((r) => r.data),
     updateProviderSettings: (data: {
         api_key?: string;
         api_base?: string;
@@ -200,6 +204,13 @@ export const testingApi = {
     createEvaluation: (
         data: Partial<Evaluation> & { test_result_id: string },
     ) => api.post<Evaluation>("/testing/evaluations", data).then((r) => r.data),
+    applyFix: (personaId: string, suggestion: ImprovementSuggestion) =>
+        api
+            .post<ApplyFixResponse>("/testing/apply-fix", {
+                persona_id: personaId,
+                suggestion,
+            })
+            .then((r) => r.data),
 };
 
 // ── Graph ───────────────────────────────────────────────

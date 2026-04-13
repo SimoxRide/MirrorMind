@@ -28,7 +28,12 @@ from app.models.persona import Memory, PersonaCore, WritingSample
 from app.models.policy import PolicyRule
 from app.models.testing import Evaluation, TestResult, TestScenario
 from app.models.user import User
-from app.schemas.core import CloneRequest, CloneResponse, EvaluationRead
+from app.schemas.core import (
+    CloneRequest,
+    CloneResponse,
+    EvaluationRead,
+    ImprovementSuggestion,
+)
 from app.services.provider_settings import resolve_provider_settings
 
 logger = get_logger("clone_engine")
@@ -41,7 +46,9 @@ class CloneEngine:
         self.db = db
         self.graph_retriever = GraphRetriever()
 
-    async def generate(self, req: CloneRequest, user: User | None = None) -> CloneResponse:
+    async def generate(
+        self, req: CloneRequest, user: User | None = None
+    ) -> CloneResponse:
         provider_settings = resolve_provider_settings(user)
         if not provider_settings.configured:
             # Fallback: return a placeholder so the pipeline is testable without OpenAI
@@ -151,6 +158,7 @@ class CloneEngine:
 
         test_result_id = None
         evaluation_read = None
+        improvement_suggestions: list[ImprovementSuggestion] = []
         if req.save_result:
             scenario = await self._get_or_create_scenario(req)
             test_result = TestResult(
@@ -170,16 +178,23 @@ class CloneEngine:
             await self.db.refresh(test_result)
             test_result_id = test_result.id
 
+            eval_result = build_auto_evaluation(
+                persona=persona,
+                request=req,
+                response_text=final_response,
+                confidence=confidence,
+                trace=trace,
+                gold_answer=scenario.gold_answer,
+            )
+            # Extract improvement suggestions before persisting evaluation
+            raw_suggestions = eval_result.pop("improvement_suggestions", [])
+            improvement_suggestions = [
+                ImprovementSuggestion(**s) for s in raw_suggestions
+            ]
+
             evaluation = Evaluation(
                 test_result_id=test_result.id,
-                **build_auto_evaluation(
-                    persona=persona,
-                    request=req,
-                    response_text=final_response,
-                    confidence=confidence,
-                    trace=trace,
-                    gold_answer=scenario.gold_answer,
-                ),
+                **eval_result,
             )
             self.db.add(evaluation)
             await self.db.flush()
@@ -193,6 +208,7 @@ class CloneEngine:
             requires_review=requires_review,
             test_result_id=test_result_id,
             evaluation=evaluation_read,
+            improvement_suggestions=improvement_suggestions,
         )
 
     async def _load_persona(self, persona_id: UUID) -> PersonaCore | None:

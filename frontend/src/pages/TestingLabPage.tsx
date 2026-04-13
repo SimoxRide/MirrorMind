@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useAppStore } from "../store/useAppStore";
 import { testingApi } from "../api/client";
-import type { CloneResponse } from "../types";
+import type { CloneResponse, ImprovementSuggestion } from "../types";
 import TipBox from "../components/TipBox";
 import {
     Send,
@@ -10,6 +10,12 @@ import {
     Code2,
     CheckCircle2,
     ArrowRight,
+    Wrench,
+    Lightbulb,
+    ShieldAlert,
+    Loader2,
+    Check,
+    X,
 } from "lucide-react";
 
 const CONTEXT_TYPES = [
@@ -61,6 +67,34 @@ function verdictClass(verdict: string | null) {
     return "badge-amber";
 }
 
+function severityColor(severity: string) {
+    if (severity === "high") return "border-rose-500/30 bg-rose-500/5";
+    if (severity === "medium") return "border-amber-500/30 bg-amber-500/5";
+    return "border-slate-500/30 bg-slate-500/5";
+}
+
+function severityBadge(severity: string) {
+    if (severity === "high") return "bg-rose-500/20 text-rose-400";
+    if (severity === "medium") return "bg-amber-500/20 text-amber-400";
+    return "bg-slate-500/20 text-slate-400";
+}
+
+function typeIcon(type: string) {
+    if (type === "memory") return "🧠";
+    if (type === "writing_sample") return "✍️";
+    if (type === "policy") return "🛡️";
+    if (type === "never_say") return "🚫";
+    return "💡";
+}
+
+function typeLabel(type: string) {
+    if (type === "memory") return "Memory";
+    if (type === "writing_sample") return "Writing Sample";
+    if (type === "policy") return "Policy Rule";
+    if (type === "never_say") return "Never Say";
+    return type;
+}
+
 export default function TestingLabPage() {
     const activePersonaId = useAppStore((s) => s.activePersonaId);
     const [message, setMessage] = useState("");
@@ -69,12 +103,20 @@ export default function TestingLabPage() {
     const [response, setResponse] = useState<CloneResponse | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
+    const [applyingFix, setApplyingFix] = useState<number | null>(null);
+    const [appliedFixes, setAppliedFixes] = useState<Record<number, string>>(
+        {},
+    );
+    const [fixErrors, setFixErrors] = useState<Record<number, string>>({});
 
     const handleRun = async () => {
         if (!activePersonaId || !message) return;
         setLoading(true);
         setResponse(null);
         setError("");
+        setAppliedFixes({});
+        setFixErrors({});
+        setApplyingFix(null);
         try {
             const result = await testingApi.runClone({
                 persona_id: activePersonaId,
@@ -91,6 +133,38 @@ export default function TestingLabPage() {
             setError(msg);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleApplyFix = async (
+        index: number,
+        suggestion: ImprovementSuggestion,
+    ) => {
+        if (!activePersonaId) return;
+        setApplyingFix(index);
+        setFixErrors((prev) => {
+            const next = { ...prev };
+            delete next[index];
+            return next;
+        });
+        try {
+            const result = await testingApi.applyFix(
+                activePersonaId,
+                suggestion,
+            );
+            if (result.applied) {
+                setAppliedFixes((prev) => ({
+                    ...prev,
+                    [index]: result.detail,
+                }));
+            }
+        } catch (err: unknown) {
+            const msg =
+                (err as { response?: { data?: { detail?: string } } })?.response
+                    ?.data?.detail || "Failed to apply fix";
+            setFixErrors((prev) => ({ ...prev, [index]: msg }));
+        } finally {
+            setApplyingFix(null);
         }
     };
 
@@ -262,14 +336,16 @@ export default function TestingLabPage() {
                                             </div>
                                             <div
                                                 className={`text-xl font-semibold mt-1 ${scoreClass(
-                                                    response.evaluation?.[key] ??
-                                                        null,
+                                                    response.evaluation?.[
+                                                        key
+                                                    ] ?? null,
                                                     lowerBetter,
                                                 )}`}
                                             >
                                                 {formatScore(
-                                                    response.evaluation?.[key] ??
-                                                        null,
+                                                    response.evaluation?.[
+                                                        key
+                                                    ] ?? null,
                                                 )}
                                             </div>
                                             <div className="text-[11px] text-slate-600 mt-1">
@@ -283,12 +359,145 @@ export default function TestingLabPage() {
                             </div>
 
                             {response.evaluation.reviewer_notes && (
-                                <div className="bg-slate-800/80 rounded-lg p-4 text-sm text-slate-300">
+                                <div className="bg-slate-800/80 rounded-lg p-4 text-sm text-slate-300 whitespace-pre-wrap">
                                     {response.evaluation.reviewer_notes}
                                 </div>
                             )}
                         </div>
                     )}
+
+                    {/* Improvement Suggestions */}
+                    {response.improvement_suggestions &&
+                        response.improvement_suggestions.length > 0 && (
+                            <div className="card p-6 space-y-4">
+                                <div className="flex items-center gap-2">
+                                    <Lightbulb className="w-5 h-5 text-amber-400" />
+                                    <h3 className="font-semibold text-sm text-white">
+                                        Suggested Fixes
+                                    </h3>
+                                    <span className="text-xs text-slate-500">
+                                        (
+                                        {
+                                            response.improvement_suggestions
+                                                .length
+                                        }{" "}
+                                        suggestion
+                                        {response.improvement_suggestions
+                                            .length > 1
+                                            ? "s"
+                                            : ""}
+                                        )
+                                    </span>
+                                </div>
+                                <p className="text-xs text-slate-500">
+                                    The evaluator detected issues and generated
+                                    fixes you can apply to improve your clone.
+                                    Review each suggestion and click{" "}
+                                    <strong>Apply</strong> to add it.
+                                </p>
+
+                                <div className="space-y-3">
+                                    {response.improvement_suggestions.map(
+                                        (suggestion, idx) => {
+                                            const isApplied =
+                                                idx in appliedFixes;
+                                            const isApplying =
+                                                applyingFix === idx;
+                                            const fixError = fixErrors[idx];
+
+                                            return (
+                                                <div
+                                                    key={idx}
+                                                    className={`border rounded-lg p-4 ${
+                                                        isApplied
+                                                            ? "border-emerald-500/30 bg-emerald-500/5"
+                                                            : severityColor(
+                                                                  suggestion.severity,
+                                                              )
+                                                    }`}
+                                                >
+                                                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                                                        <div className="flex-1 min-w-0">
+                                                            <div className="flex items-center gap-2 flex-wrap">
+                                                                <span className="text-base">
+                                                                    {typeIcon(
+                                                                        suggestion.type,
+                                                                    )}
+                                                                </span>
+                                                                <span className="font-medium text-sm text-white">
+                                                                    {
+                                                                        suggestion.title
+                                                                    }
+                                                                </span>
+                                                                <span
+                                                                    className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${severityBadge(suggestion.severity)}`}
+                                                                >
+                                                                    {suggestion.severity.toUpperCase()}
+                                                                </span>
+                                                                <span className="text-[10px] text-slate-600 bg-slate-800 px-1.5 py-0.5 rounded">
+                                                                    {typeLabel(
+                                                                        suggestion.type,
+                                                                    )}
+                                                                </span>
+                                                            </div>
+                                                            <p className="text-xs text-slate-400 mt-1.5">
+                                                                {
+                                                                    suggestion.reason
+                                                                }
+                                                            </p>
+                                                        </div>
+
+                                                        <div className="flex items-center gap-2 shrink-0">
+                                                            {isApplied ? (
+                                                                <span className="flex items-center gap-1 text-xs text-emerald-400 font-medium">
+                                                                    <Check className="w-3.5 h-3.5" />
+                                                                    Applied
+                                                                </span>
+                                                            ) : (
+                                                                <button
+                                                                    onClick={() =>
+                                                                        handleApplyFix(
+                                                                            idx,
+                                                                            suggestion,
+                                                                        )
+                                                                    }
+                                                                    disabled={
+                                                                        isApplying
+                                                                    }
+                                                                    className="btn-primary text-xs px-3 py-1.5"
+                                                                >
+                                                                    {isApplying ? (
+                                                                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                                                    ) : (
+                                                                        <Wrench className="w-3.5 h-3.5" />
+                                                                    )}
+                                                                    {isApplying
+                                                                        ? "Applying..."
+                                                                        : "Apply"}
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    </div>
+
+                                                    {isApplied && (
+                                                        <div className="mt-2 text-[11px] text-emerald-400/80">
+                                                            {appliedFixes[idx]}
+                                                        </div>
+                                                    )}
+
+                                                    {fixError && (
+                                                        <div className="mt-2 flex items-center gap-1 text-[11px] text-rose-400">
+                                                            <X className="w-3 h-3" />
+                                                            {fixError}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            );
+                                        },
+                                    )}
+                                </div>
+                            </div>
+                        )}
 
                     {goldAnswer && (
                         <div className="card p-6">
