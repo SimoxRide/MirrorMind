@@ -16,7 +16,7 @@ class Settings(BaseSettings):
 
     # --- App ---
     app_name: str = "MirrorMind"
-    app_version: str = "0.1.3"
+    app_version: str = "0.1.4"
     debug: bool = False
     log_level: str = "INFO"
 
