@@ -7,8 +7,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.deps import get_optional_current_user
 from app.db.session import get_db
 from app.models.testing import Evaluation, TestResult, TestScenario
+from app.models.user import User
 from app.schemas.core import (
     CloneRequest,
     CloneResponse,
@@ -67,7 +69,11 @@ async def get_scenario(scenario_id: UUID, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/run", response_model=CloneResponse)
-async def run_clone(req: CloneRequest, db: AsyncSession = Depends(get_db)):
+async def run_clone(
+    req: CloneRequest,
+    db: AsyncSession = Depends(get_db),
+    user: User | None = Depends(get_optional_current_user),
+):
     """Execute the clone pipeline for a single message.
 
     This route orchestrates the full clone generation flow:
@@ -77,7 +83,7 @@ async def run_clone(req: CloneRequest, db: AsyncSession = Depends(get_db)):
     from app.services.clone_engine import CloneEngine
 
     engine = CloneEngine(db)
-    return await engine.generate(req)
+    return await engine.generate(req, user=user)
 
 
 # ── Evaluations ──────────────────────────────────────────

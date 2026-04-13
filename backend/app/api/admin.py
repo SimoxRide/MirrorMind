@@ -5,8 +5,11 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
+from app.core.deps import get_optional_current_user
 from app.db.session import get_db
 from app.graphrag.neo4j_client import get_neo4j_client
+from app.models.user import User
+from app.services.provider_settings import resolve_provider_settings
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
 
@@ -36,11 +39,13 @@ async def health_neo4j():
 
 
 @router.get("/health/openai")
-async def health_openai():
-    settings = get_settings()
-    configured = bool(settings.openai_api_key)
+async def health_openai(user: User | None = Depends(get_optional_current_user)):
+    resolved = resolve_provider_settings(user)
     return {
-        "openai_configured": configured,
-        "model": settings.openai_model,
-        "api_base": settings.openai_api_base or "https://api.openai.com/v1 (default)",
+        "openai_configured": resolved.configured,
+        "model": resolved.model,
+        "api_base": resolved.effective_api_base,
+        "api_key_source": resolved.source,
+        "has_user_api_key": resolved.has_user_api_key,
+        "has_env_api_key": resolved.has_env_api_key,
     }

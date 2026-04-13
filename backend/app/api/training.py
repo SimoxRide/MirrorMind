@@ -10,12 +10,14 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.definitions import training_analyst_agent, training_question_agent
-from app.core.config import get_settings
+from app.core.deps import get_optional_current_user
 from app.core.logging import get_logger
 from app.db.session import get_db
 from app.models.persona import Memory, PersonaCore, WritingSample
 from app.models.policy import PolicyRule
+from app.models.user import User
 from app.schemas.persona import MemoryCreate, WritingSampleCreate
+from app.services.provider_settings import resolve_provider_settings
 
 logger = get_logger("training_lab")
 
@@ -90,12 +92,14 @@ class AnalysisResult(BaseModel):
 
 @router.post("/generate-questions", response_model=list[TrainingQuestion])
 async def generate_questions(
-    req: GenerateQuestionsRequest, db: AsyncSession = Depends(get_db)
+    req: GenerateQuestionsRequest,
+    db: AsyncSession = Depends(get_db),
+    user: User | None = Depends(get_optional_current_user),
 ):
     """Generate scenario-based training questions tailored to persona gaps."""
-    settings = get_settings()
-    if not settings.openai_api_key:
-        raise HTTPException(400, "OpenAI API key not configured")
+    provider_settings = resolve_provider_settings(user)
+    if not provider_settings.configured:
+        raise HTTPException(400, "Provider API key not configured")
 
     # Load persona context
     persona = await db.get(PersonaCore, req.persona_id)
@@ -136,7 +140,11 @@ Writing samples per context: {json.dumps(context_counts) if context_counts else 
 Generate exactly {req.count} training questions. Focus on areas where the profile has GAPS.
 Do NOT repeat or rephrase any of the previously asked questions."""
 
-    result = await Runner.run(training_question_agent, input=prompt)
+    result = await Runner.run(
+        training_question_agent,
+        input=prompt,
+        run_config=provider_settings.to_run_config(),
+    )
 
     try:
         questions = json.loads(result.final_output)
@@ -147,11 +155,15 @@ Do NOT repeat or rephrase any of the previously asked questions."""
 
 
 @router.post("/analyze-answer", response_model=AnalysisResult)
-async def analyze_answer(req: AnalyzeAnswerRequest, db: AsyncSession = Depends(get_db)):
+async def analyze_answer(
+    req: AnalyzeAnswerRequest,
+    db: AsyncSession = Depends(get_db),
+    user: User | None = Depends(get_optional_current_user),
+):
     """Analyze a user's answer to extract clone knowledge and optionally auto-save."""
-    settings = get_settings()
-    if not settings.openai_api_key:
-        raise HTTPException(400, "OpenAI API key not configured")
+    provider_settings = resolve_provider_settings(user)
+    if not provider_settings.configured:
+        raise HTTPException(400, "Provider API key not configured")
 
     persona = await db.get(PersonaCore, req.persona_id)
     if not persona:
@@ -178,7 +190,11 @@ EXISTING MEMORY TITLES (avoid duplicates):
 
 Analyze the answer thoroughly and extract all useful data for the clone."""
 
-    result = await Runner.run(training_analyst_agent, input=prompt)
+    result = await Runner.run(
+        training_analyst_agent,
+        input=prompt,
+        run_config=provider_settings.to_run_config(),
+    )
 
     try:
         data = json.loads(result.final_output)

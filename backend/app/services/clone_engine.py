@@ -21,14 +21,15 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.definitions import critic_agent, response_generator_agent
-from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.evaluation.scoring import build_auto_evaluation
 from app.graphrag.retrieval import GraphRetriever
 from app.models.persona import Memory, PersonaCore, WritingSample
 from app.models.policy import PolicyRule
 from app.models.testing import Evaluation, TestResult, TestScenario
+from app.models.user import User
 from app.schemas.core import CloneRequest, CloneResponse, EvaluationRead
+from app.services.provider_settings import resolve_provider_settings
 
 logger = get_logger("clone_engine")
 
@@ -40,12 +41,12 @@ class CloneEngine:
         self.db = db
         self.graph_retriever = GraphRetriever()
 
-    async def generate(self, req: CloneRequest) -> CloneResponse:
-        settings = get_settings()
-        if not settings.openai_api_key:
+    async def generate(self, req: CloneRequest, user: User | None = None) -> CloneResponse:
+        provider_settings = resolve_provider_settings(user)
+        if not provider_settings.configured:
             # Fallback: return a placeholder so the pipeline is testable without OpenAI
             return CloneResponse(
-                response="[Clone engine requires OPENAI_API_KEY to generate responses]",
+                response="[Clone engine requires a configured provider API key to generate responses]",
                 confidence=0.0,
                 trace={"error": "openai_not_configured"},
                 requires_review=True,
@@ -99,6 +100,7 @@ class CloneEngine:
         gen_result = await Runner.run(
             response_generator_agent,
             input=context_prompt,
+            run_config=provider_settings.to_run_config(),
         )
         gen_output = gen_result.final_output
         trace["raw_generation"] = gen_output
@@ -121,7 +123,11 @@ class CloneEngine:
             generated_response=gen_data.get("response", gen_output),
             request=req,
         )
-        critic_result = await Runner.run(critic_agent, input=critic_prompt)
+        critic_result = await Runner.run(
+            critic_agent,
+            input=critic_prompt,
+            run_config=provider_settings.to_run_config(),
+        )
         trace["critic_output"] = critic_result.final_output
 
         try:

@@ -11,7 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.definitions import document_profile_extractor_agent
-from app.core.config import get_settings
+from app.core.deps import get_optional_current_user
 from app.core.logging import get_logger
 from app.db.session import get_db
 from app.ingestion.document_parser import (
@@ -32,6 +32,8 @@ from app.models.interview import InterviewAnswer, InterviewSession
 from app.models.persona import Memory, PersonaCore, WritingSample
 from app.models.policy import PolicyRule
 from app.models.testing import TestScenario
+from app.models.user import User
+from app.services.provider_settings import resolve_provider_settings
 
 router = APIRouter(prefix="/io", tags=["Import / Export"])
 logger = get_logger("io")
@@ -442,11 +444,12 @@ async def analyze_document(
     notes: str = Form(""),
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
+    user: User | None = Depends(get_optional_current_user),
 ):
     """Analyze a document and convert it into persona training data."""
-    settings = get_settings()
-    if not settings.openai_api_key:
-        raise HTTPException(400, "OpenAI API key not configured")
+    provider_settings = resolve_provider_settings(user)
+    if not provider_settings.configured:
+        raise HTTPException(400, "Provider API key not configured")
 
     persona = await db.get(PersonaCore, persona_id)
     if not persona:
@@ -512,7 +515,11 @@ EXISTING WRITING SAMPLE CONTEXTS
 DOCUMENT TEXT
 {chunk.text}
 """
-        result = await Runner.run(document_profile_extractor_agent, input=prompt)
+        result = await Runner.run(
+            document_profile_extractor_agent,
+            input=prompt,
+            run_config=provider_settings.to_run_config(),
+        )
 
         try:
             chunk_payloads.append(_load_json_output(result.final_output))

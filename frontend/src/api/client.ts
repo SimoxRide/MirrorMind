@@ -20,6 +20,7 @@ import type {
     ProductionClone,
     DocumentAnalysis,
     QuickImportResult,
+    ProviderSettings,
 } from "../types";
 
 const api = axios.create({
@@ -61,6 +62,16 @@ export const authApi = {
         api.post<AuthToken>("/auth/register", data).then((r) => r.data),
     login: (data: { email: string; password: string }) =>
         api.post<AuthToken>("/auth/login", data).then((r) => r.data),
+    getProviderSettings: () =>
+        api.get<ProviderSettings>("/auth/provider-settings").then((r) => r.data),
+    updateProviderSettings: (data: {
+        api_key?: string;
+        api_base?: string;
+        model?: string;
+    }) =>
+        api
+            .patch<ProviderSettings>("/auth/provider-settings", data)
+            .then((r) => r.data),
 };
 
 // ── Persona ─────────────────────────────────────────────

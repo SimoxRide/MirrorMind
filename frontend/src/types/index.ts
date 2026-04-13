@@ -13,6 +13,15 @@ export interface SetupStatus {
     needs_setup: boolean;
 }
 
+export interface ProviderSettings {
+    has_user_api_key: boolean;
+    api_key_source: "user" | "env" | "none";
+    effective_api_base: string;
+    effective_model: string;
+    user_api_base: string | null;
+    user_model: string | null;
+}
+
 // ── Production Clones ───────────────────────────────────
 
 export interface ProductionClone {

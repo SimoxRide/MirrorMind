@@ -1,13 +1,15 @@
-"""Authentication & user management routes."""
+"""Authentication, user info, and per-user provider settings routes."""
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, EmailStr
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.deps import get_current_user
 from app.core.security import create_access_token, hash_password, verify_password
 from app.db.session import get_db
 from app.models.user import User
+from app.services.provider_settings import resolve_provider_settings
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
@@ -40,6 +42,21 @@ class UserInfo(BaseModel):
     id: str
     email: str
     is_admin: bool
+
+
+class ProviderSettingsResponse(BaseModel):
+    has_user_api_key: bool
+    api_key_source: str
+    effective_api_base: str
+    effective_model: str
+    user_api_base: str | None = None
+    user_model: str | None = None
+
+
+class ProviderSettingsUpdate(BaseModel):
+    api_key: str | None = None
+    api_base: str | None = None
+    model: str | None = None
 
 
 # ── Endpoints ────────────────────────────────────────────
@@ -127,10 +144,57 @@ async def login(data: LoginRequest, db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/me", response_model=UserInfo)
-async def get_current_user_info(db: AsyncSession = Depends(get_db)):
-    """Get current user info. Requires auth header (handled by middleware)."""
-    # This will be populated by the auth middleware
-    from app.core.deps import get_current_user
+async def get_current_user_info(user: User = Depends(get_current_user)):
+    """Get the authenticated user's basic profile."""
+    return UserInfo(id=str(user.id), email=user.email, is_admin=user.is_admin)
 
-    # Placeholder — the actual dependency injection happens at the route level
-    raise HTTPException(501, "Use the dependency-injected version")
+
+@router.get("/provider-settings", response_model=ProviderSettingsResponse)
+async def get_provider_settings(user: User = Depends(get_current_user)):
+    """Return effective provider settings with user-overrides-first precedence."""
+    resolved = resolve_provider_settings(user)
+    return ProviderSettingsResponse(
+        has_user_api_key=resolved.has_user_api_key,
+        api_key_source=resolved.source,
+        effective_api_base=resolved.effective_api_base,
+        effective_model=resolved.model,
+        user_api_base=resolved.user_api_base,
+        user_model=resolved.user_model,
+    )
+
+
+@router.patch("/provider-settings", response_model=ProviderSettingsResponse)
+async def update_provider_settings(
+    data: ProviderSettingsUpdate,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Update per-user provider settings used before falling back to .env."""
+    updated_fields = data.model_fields_set
+
+    if "api_key" in updated_fields:
+        user.provider_api_key = _normalize_provider_field(data.api_key)
+    if "api_base" in updated_fields:
+        user.provider_api_base = _normalize_provider_field(data.api_base)
+    if "model" in updated_fields:
+        user.provider_model = _normalize_provider_field(data.model)
+
+    await db.flush()
+    await db.refresh(user)
+
+    resolved = resolve_provider_settings(user)
+    return ProviderSettingsResponse(
+        has_user_api_key=resolved.has_user_api_key,
+        api_key_source=resolved.source,
+        effective_api_base=resolved.effective_api_base,
+        effective_model=resolved.model,
+        user_api_base=resolved.user_api_base,
+        user_model=resolved.user_model,
+    )
+
+
+def _normalize_provider_field(value: str | None) -> str | None:
+    if value is None:
+        return None
+    cleaned = value.strip()
+    return cleaned or None
