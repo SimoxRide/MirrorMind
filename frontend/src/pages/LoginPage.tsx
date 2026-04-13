@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { authApi } from "../api/client";
 import { useAppStore } from "../store/useAppStore";
-import { Sparkles, LogIn, UserPlus, ArrowRight } from "lucide-react";
+import { LogIn, UserPlus, ArrowRight } from "lucide-react";
 
 export default function LoginPage() {
     const navigate = useNavigate();
@@ -95,13 +95,13 @@ export default function LoginPage() {
             <div className="w-full max-w-md">
                 {/* Brand */}
                 <div className="text-center mb-8">
-                    <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center mx-auto mb-4">
-                        <Sparkles size={28} className="text-white" />
-                    </div>
-                    <h1 className="text-2xl font-bold text-white tracking-tight">
-                        MirrorMind
-                    </h1>
-                    <p className="text-sm text-slate-500 mt-1">
+                    <img
+                        src="/mirrormind-logo.png"
+                        alt="MirrorMind"
+                        className="mx-auto h-auto w-full max-w-[280px]"
+                    />
+                    <h1 className="sr-only">MirrorMind</h1>
+                    <p className="text-sm text-slate-500 mt-3">
                         AI Clone Platform
                     </p>
                 </div>

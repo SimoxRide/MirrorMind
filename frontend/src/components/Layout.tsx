@@ -58,10 +58,12 @@ export default function Layout() {
             {/* Brand */}
             <div className="px-5 py-5">
                 <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
-                            <Sparkles size={16} className="text-white" />
-                        </div>
+                    <div className="flex items-center gap-3">
+                        <img
+                            src="/mirrormind-icon.png"
+                            alt="MirrorMind"
+                            className="h-10 w-10 shrink-0 object-contain"
+                        />
                         <div>
                             <h1 className="text-sm font-bold text-white tracking-tight">
                                 MirrorMind
@@ -149,9 +151,11 @@ export default function Layout() {
             {/* Mobile top bar */}
             <div className="fixed top-0 left-0 right-0 z-40 lg:hidden bg-slate-900 border-b border-slate-800 px-4 py-3 flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
-                    <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
-                        <Sparkles size={14} className="text-white" />
-                    </div>
+                    <img
+                        src="/mirrormind-icon.png"
+                        alt="MirrorMind"
+                        className="h-8 w-8 shrink-0 object-contain"
+                    />
                     <span className="text-sm font-bold text-white">
                         MirrorMind
                     </span>

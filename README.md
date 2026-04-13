@@ -1,5 +1,9 @@
 # MirrorMind
 
+<p align="center">
+  <img src="./MirrorMindLogo.png" alt="MirrorMind logo" width="420" />
+</p>
+
 **The open-source framework for building AI clones of yourself — or any persona.**
 
 MirrorMind gives you everything you need to create, train, and deploy an AI that thinks, writes, and responds like a real person. Define a persona's identity, feed it memories and writing samples, set behavioral rules, build a knowledge graph, then test, evaluate, and iterate until the clone is indistinguishable from the original.
