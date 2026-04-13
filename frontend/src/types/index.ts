@@ -267,3 +267,54 @@ export interface AnalysisResult {
     saved: boolean;
     saved_counts: Record<string, number>;
 }
+
+export interface DocumentImportCounts {
+    memories: number;
+    writing_samples: number;
+    policies: number;
+}
+
+export interface QuickImportResult {
+    memories: number;
+    writing_samples: number;
+    policies: number;
+    persona_updated: boolean;
+    duplicate_memories: number;
+    duplicate_writing_samples: number;
+    duplicate_policies: number;
+    skipped_duplicates: number;
+}
+
+export interface DocumentAnalysis {
+    filename: string;
+    document_type: string;
+    source_kind: string;
+    char_count: number;
+    used_char_count: number;
+    chunk_count: number;
+    analyzed_chunk_count: number;
+    was_truncated: boolean;
+    preview_text: string;
+    summary: string;
+    persona_would_change: boolean;
+    estimated_new_counts: DocumentImportCounts;
+    duplicate_counts: DocumentImportCounts;
+    persona: Record<string, unknown> | null;
+    memories: Array<{
+        memory_type: string;
+        title: string;
+        content: string;
+        tags: string[] | null;
+    }>;
+    writing_samples: Array<{
+        content: string;
+        context_type: string;
+        tone: string | null;
+    }>;
+    policies: Array<{
+        policy_type: string;
+        name: string;
+        description: string;
+    }>;
+    traits: ExtractedTrait[];
+}

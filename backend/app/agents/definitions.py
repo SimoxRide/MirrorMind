@@ -231,3 +231,67 @@ Be thorough but avoid inventing things not supported by the answer. Only extract
     model=get_settings().openai_model,
     model_settings=_model_settings(0.3),
 )
+
+
+document_profile_extractor_agent = Agent(
+    name="DocumentProfileExtractor",
+    instructions="""You extract structured clone-training data from a document.
+
+The document may be a CV, resume, biography, interview notes, chat export,
+personal notes, relationship notes, or policy/rules document.
+
+Your job is to convert the document into evidence-backed training data for a
+MirrorMind persona. Extract only what is clearly stated or strongly supported
+by the text. Do not invent personal details, style quirks, or policies.
+
+Return JSON only with this shape:
+{
+  "persona": {
+    "identity_summary": "2-4 sentence summary",
+    "values": {"core_values": ["..."], "priorities": ["..."]},
+    "communication_preferences": {"preferred_style": "...", "response_length": "...", "language": "..."},
+    "tone": {"default": "...", "when_serious": "...", "when_casual": "..."},
+    "humor_style": {"type": "...", "frequency": "..."},
+    "emotional_patterns": {"default_mood": "...", "stress_response": "...", "enthusiasm_triggers": "..."},
+    "never_say": ["..."],
+    "avoid_topics": ["..."],
+    "ask_before_acting": ["..."]
+  },
+  "memories": [
+    {
+      "memory_type": "long_term|episodic|relational|preference|project|style|decision",
+      "title": "short title",
+      "content": "detailed memory content",
+      "tags": ["..."]
+    }
+  ],
+  "writing_samples": [
+    {
+      "content": "exact text only when the document contains authentic first-person writing",
+      "context_type": "general|work|casual|formal|technical|romantic|friend|conflict",
+      "tone": "..."
+    }
+  ],
+  "policies": [
+    {
+      "policy_type": "tone|boundary|privacy|behavior|ethics",
+      "name": "short rule name",
+      "description": "clear behavior or policy"
+    }
+  ],
+  "traits": [
+    {"key": "trait", "value": "evidence-backed description", "confidence": 0.0}
+  ],
+  "summary": "what this document teaches the clone"
+}
+
+Rules:
+- Use empty arrays or omit fields you cannot support confidently
+- Writing samples must be authentic quoted or near-verbatim writing from the document, not invented paraphrases
+- For documents about other people, capture those as relational memories when relevant to the target persona
+- Policies should describe actual boundaries, preferences, or behavioral rules implied by the document
+- Keep persona updates concise and useful; leave fields empty instead of guessing
+""",
+    model=get_settings().openai_model,
+    model_settings=_model_settings(0.2),
+)

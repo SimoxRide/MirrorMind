@@ -23,6 +23,7 @@ Whether you want an AI that answers customers in your voice, a digital twin for 
 | **Training Lab**     | Generate targeted questions, submit answers, and let the system analyze weak spots                                                    |
 | **Evaluation**       | Score responses on accuracy, tone fidelity, memory usage, and policy compliance                                                       |
 | **Production**       | Deploy trained clones as authenticated REST API endpoints, ready to integrate anywhere                                                |
+| **Document Import**  | Upload PDF, DOCX, TXT, MD, or JSON documents and extract persona updates, memories, writing samples, and policies with dedupe preview |
 | **Quick Import**     | Copy a prompt into ChatGPT, paste back the JSON, and auto-populate memories, writing samples, and policies in seconds                 |
 
 ### Key features
@@ -30,14 +31,24 @@ Whether you want an AI that answers customers in your voice, a digital twin for 
 - **7 specialized AI Agents** — ResponseGenerator, Critic, Interviewer, StyleAnalyzer, TraitExtractor, TrainingQuestionGenerator, TrainingAnalyst
 - **OpenAI-compatible** — works with OpenAI, Ollama, LM Studio, Together, Groq, or any v1-compatible provider
 - **Full import/export** — persona bundles as portable JSON
+- **Document ingestion** — chunked multi-format document analysis with duplicate-aware preview and save
 - **JWT auth** — login, registration, and first-run admin setup
 - **Dark theme UI** — modern glass-morphism design with React, TypeScript, and Tailwind CSS
 - **Mobile responsive** — fully usable on phone and tablet
 
-![Version](https://img.shields.io/badge/version-0.1.2-blue)
+![Version](https://img.shields.io/badge/version-0.1.3-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Python](https://img.shields.io/badge/python-3.11+-yellow)
 ![TypeScript](https://img.shields.io/badge/typescript-5.x-blue)
+
+---
+
+## Release 0.1.3
+
+- Added **Document Import** for `pdf`, `docx`, `txt`, `md`, and `json`
+- Added chunked document analysis so larger files do not rely on a single truncated prompt
+- Added duplicate-aware preview and save for memories, writing samples, and policies
+- Kept **Quick Import** for ChatGPT-generated JSON bootstrapping
 
 ---
 
@@ -159,7 +170,7 @@ docker compose up --build
 
 1. Create an admin account on first launch
 2. Create or select a persona
-3. Add memories and writing samples
+3. Add memories and writing samples, or bootstrap with Document Import / Quick Import
 4. Define behavioral policies
 5. Rebuild the knowledge graph
 6. Run the clone in the Testing Lab
@@ -167,6 +178,30 @@ docker compose up --build
 8. Train the clone with targeted Training Lab sessions
 9. Deploy to production via the Production page
 10. Integrate the public API endpoint into your apps
+
+---
+
+## Document Import
+
+The **Document Import** page lets you turn existing personal material into clone training data:
+
+1. Open **Document Import** from the sidebar
+2. Upload a supported file: `pdf`, `docx`, `txt`, `md`, or `json`
+3. Choose the source kind and optionally add notes for the analyzer
+4. Review the extracted persona updates, memories, writing samples, traits, and policies
+5. Check the estimated new items and duplicate matches before saving
+6. Save the extracted data into the selected persona
+
+What it does well in `0.1.3`:
+
+- Splits long documents into multiple analysis chunks
+- Merges chunk results into one structured preview
+- Skips duplicate memories, writing samples, and policies on import
+- Shows partial coverage when only part of a very large document was analyzed
+
+Current limit:
+
+- Image-only or scanned PDFs still need OCR support; embedded text PDFs work now
 
 ---
 

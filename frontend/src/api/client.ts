@@ -18,11 +18,12 @@ import type {
     AuthToken,
     SetupStatus,
     ProductionClone,
+    DocumentAnalysis,
+    QuickImportResult,
 } from "../types";
 
 const api = axios.create({
     baseURL: "/api/v1",
-    headers: { "Content-Type": "application/json" },
 });
 
 // ── Auth interceptor ────────────────────────────────────
@@ -283,9 +284,35 @@ export const ioApi = {
         api.get(`/io/export/persona/${personaId}`).then((r) => r.data),
     importPersona: (bundle: Record<string, unknown>) =>
         api.post("/io/import/persona", bundle).then((r) => r.data),
-    quickImport: (personaId: string, data: Record<string, unknown>) =>
+    analyzeDocument: (
+        personaId: string,
+        file: File,
+        options?: { sourceKind?: string; notes?: string },
+    ) => {
+        const formData = new FormData();
+        formData.append("persona_id", personaId);
+        formData.append("file", file);
+        if (options?.sourceKind) {
+            formData.append("source_kind", options.sourceKind);
+        }
+        if (options?.notes) {
+            formData.append("notes", options.notes);
+        }
+        return api
+            .post<DocumentAnalysis>("/io/analyze-document", formData)
+            .then((r) => r.data);
+    },
+    quickImport: (
+        personaId: string,
+        data: Record<string, unknown>,
+        sourceLabel?: string,
+    ) =>
         api
-            .post("/io/quick-import", { persona_id: personaId, data })
+            .post<{ imported: QuickImportResult }>("/io/quick-import", {
+                persona_id: personaId,
+                data,
+                source_label: sourceLabel,
+            })
             .then((r) => r.data),
 };
 

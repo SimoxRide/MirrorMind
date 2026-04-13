@@ -13,6 +13,7 @@ import AdminPage from "./pages/AdminPage";
 import TrainingLabPage from "./pages/TrainingLabPage";
 import ProductionPage from "./pages/ProductionPage";
 import QuickImportPage from "./pages/QuickImportPage";
+import DocumentImportPage from "./pages/DocumentImportPage";
 import LoginPage from "./pages/LoginPage";
 import { useAppStore } from "./store/useAppStore";
 
@@ -53,6 +54,7 @@ export default function App() {
                 <Route path="training" element={<TrainingLabPage />} />
                 <Route path="evaluation" element={<EvaluationPage />} />
                 <Route path="production" element={<ProductionPage />} />
+                <Route path="document-import" element={<DocumentImportPage />} />
                 <Route path="quick-import" element={<QuickImportPage />} />
                 <Route path="admin" element={<AdminPage />} />
                 <Route path="*" element={<Navigate to="/" replace />} />

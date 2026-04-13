@@ -1,6 +1,6 @@
 [project]
 name = "mirrormind"
-version = "0.1.2"
+version = "0.1.3"
 description = "MirrorMind — build and deploy high-fidelity AI clones of real people"
 requires-python = ">=3.11"
 dependencies = [
@@ -23,6 +23,7 @@ dependencies = [
     "python-jose[cryptography]>=3.3.0",
     "passlib[bcrypt]>=1.7.4",
     "orjson>=3.10.0",
+    "pypdf>=5.4.0",
 ]
 
 [project.optional-dependencies]

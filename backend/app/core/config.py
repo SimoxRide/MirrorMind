@@ -1,6 +1,7 @@
 """MirrorMind — Configuration management."""
 
 from functools import lru_cache
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -15,9 +16,20 @@ class Settings(BaseSettings):
 
     # --- App ---
     app_name: str = "MirrorMind"
-    app_version: str = "0.1.2"
+    app_version: str = "0.1.3"
     debug: bool = False
     log_level: str = "INFO"
+
+    @field_validator("debug", mode="before")
+    @classmethod
+    def _coerce_debug(cls, value):
+        if isinstance(value, str):
+            normalized = value.strip().lower()
+            if normalized in {"release", "prod", "production"}:
+                return False
+            if normalized in {"dev", "development", "debug"}:
+                return True
+        return value
 
     # --- Postgres ---
     postgres_user: str = "vsl"

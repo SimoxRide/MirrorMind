@@ -12,6 +12,7 @@ import {
     BarChart3,
     Settings,
     Sparkles,
+    FileText,
     Rocket,
     LogOut,
     Menu,
@@ -30,6 +31,7 @@ const NAV_ITEMS = [
     { to: "/training", label: "Training Lab", icon: GraduationCap },
     { to: "/evaluation", label: "Evaluation", icon: BarChart3 },
     { to: "/production", label: "Production", icon: Rocket },
+    { to: "/document-import", label: "Document Import", icon: FileText },
     { to: "/quick-import", label: "Quick Import", icon: Sparkles },
     { to: "/admin", label: "System", icon: Settings },
 ];
@@ -140,7 +142,7 @@ export default function Layout() {
                     Logout
                 </button>
                 <div className="text-[11px] text-slate-600 mt-1 px-3">
-                    v0.1.2
+                    v0.1.3
                 </div>
             </div>
         </>
