@@ -261,6 +261,9 @@ class CloneRequest(BaseModel):
     relationship_info: dict | None = None
     conversation_history: list[dict] | None = None
     autonomy_mode: str = "medium"  # low, medium, high
+    scenario_id: UUID | None = None
+    gold_answer: str | None = None
+    save_result: bool = True
 
 
 class CloneResponse(BaseModel):
@@ -269,3 +272,5 @@ class CloneResponse(BaseModel):
     trace: dict | None = None
     requires_review: bool = False
     alternative_responses: list[str] = []
+    test_result_id: UUID | None = None
+    evaluation: EvaluationRead | None = None

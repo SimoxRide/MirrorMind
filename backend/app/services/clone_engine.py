@@ -13,6 +13,7 @@ Flow:
 """
 
 import json
+import re
 from uuid import UUID
 
 from agents import Runner
@@ -22,11 +23,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agents.definitions import critic_agent, response_generator_agent
 from app.core.config import get_settings
 from app.core.logging import get_logger
+from app.evaluation.scoring import build_auto_evaluation
 from app.graphrag.retrieval import GraphRetriever
 from app.models.persona import Memory, PersonaCore, WritingSample
 from app.models.policy import PolicyRule
-from app.models.testing import TestResult
-from app.schemas.core import CloneRequest, CloneResponse
+from app.models.testing import Evaluation, TestResult, TestScenario
+from app.schemas.core import CloneRequest, CloneResponse, EvaluationRead
 
 logger = get_logger("clone_engine")
 
@@ -141,11 +143,50 @@ class CloneEngine:
         trace["critic_scores"] = critic_data.get("scores", {})
         trace["critic_issues"] = critic_data.get("issues", [])
 
+        test_result_id = None
+        evaluation_read = None
+        if req.save_result:
+            scenario = await self._get_or_create_scenario(req)
+            test_result = TestResult(
+                scenario_id=scenario.id,
+                clone_response=final_response,
+                variant_index=0,
+                trace=trace,
+                generation_config={
+                    "context_type": req.context_type,
+                    "autonomy_mode": req.autonomy_mode,
+                    "confidence": confidence,
+                    "requires_review": requires_review,
+                },
+            )
+            self.db.add(test_result)
+            await self.db.flush()
+            await self.db.refresh(test_result)
+            test_result_id = test_result.id
+
+            evaluation = Evaluation(
+                test_result_id=test_result.id,
+                **build_auto_evaluation(
+                    persona=persona,
+                    request=req,
+                    response_text=final_response,
+                    confidence=confidence,
+                    trace=trace,
+                    gold_answer=scenario.gold_answer,
+                ),
+            )
+            self.db.add(evaluation)
+            await self.db.flush()
+            await self.db.refresh(evaluation)
+            evaluation_read = EvaluationRead.model_validate(evaluation)
+
         return CloneResponse(
             response=final_response,
             confidence=confidence,
             trace=trace,
             requires_review=requires_review,
+            test_result_id=test_result_id,
+            evaluation=evaluation_read,
         )
 
     async def _load_persona(self, persona_id: UUID) -> PersonaCore | None:
@@ -209,6 +250,40 @@ class CloneEngine:
             }
             for p in policies
         ]
+
+    async def _get_or_create_scenario(self, req: CloneRequest) -> TestScenario:
+        scenario = None
+        if req.scenario_id:
+            scenario = await self.db.get(TestScenario, req.scenario_id)
+
+        if scenario:
+            if req.gold_answer and req.gold_answer != scenario.gold_answer:
+                scenario.gold_answer = req.gold_answer
+            if req.relationship_info:
+                scenario.relationship_info = req.relationship_info
+            if req.conversation_history:
+                scenario.conversation_history = req.conversation_history
+            await self.db.flush()
+            await self.db.refresh(scenario)
+            return scenario
+
+        message = re.sub(r"\s+", " ", req.message).strip()
+        title_suffix = message[:57] + "..." if len(message) > 60 else message
+        scenario = TestScenario(
+            persona_id=req.persona_id,
+            title=f"{req.context_type.title()}: {title_suffix or 'Untitled test'}",
+            description="Auto-saved from Testing Lab.",
+            context_type=req.context_type,
+            test_mode="single",
+            input_message=req.message,
+            conversation_history=req.conversation_history,
+            gold_answer=req.gold_answer,
+            relationship_info=req.relationship_info,
+        )
+        self.db.add(scenario)
+        await self.db.flush()
+        await self.db.refresh(scenario)
+        return scenario
 
     def _assemble_context(
         self,

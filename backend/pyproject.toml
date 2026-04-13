@@ -1,6 +1,6 @@
 [project]
 name = "mirrormind"
-version = "0.1.1"
+version = "0.1.2"
 description = "MirrorMind — build and deploy high-fidelity AI clones of real people"
 requires-python = ">=3.11"
 dependencies = [

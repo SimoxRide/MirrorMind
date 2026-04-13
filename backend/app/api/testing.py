@@ -2,9 +2,10 @@
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.db.session import get_db
 from app.models.testing import Evaluation, TestResult, TestScenario
@@ -13,12 +14,13 @@ from app.schemas.core import (
     CloneResponse,
     EvaluationCreate,
     EvaluationRead,
-    TestResultRead,
     TestScenarioCreate,
     TestScenarioRead,
 )
 
 router = APIRouter(prefix="/testing", tags=["Testing Lab"])
+
+SCENARIO_LOAD = selectinload(TestScenario.results).selectinload(TestResult.evaluations)
 
 
 # ── Scenarios ────────────────────────────────────────────
@@ -41,6 +43,7 @@ async def list_scenarios(
 ):
     stmt = (
         select(TestScenario)
+        .options(SCENARIO_LOAD)
         .where(TestScenario.persona_id == persona_id)
         .order_by(TestScenario.created_at.desc())
     )
@@ -52,7 +55,9 @@ async def list_scenarios(
 
 @router.get("/scenarios/{scenario_id}", response_model=TestScenarioRead)
 async def get_scenario(scenario_id: UUID, db: AsyncSession = Depends(get_db)):
-    scenario = await db.get(TestScenario, scenario_id)
+    stmt = select(TestScenario).options(SCENARIO_LOAD).where(TestScenario.id == scenario_id)
+    result = await db.execute(stmt)
+    scenario = result.scalar_one_or_none()
     if not scenario:
         raise HTTPException(status_code=404, detail="Scenario not found")
     return scenario

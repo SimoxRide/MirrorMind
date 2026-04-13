@@ -142,6 +142,7 @@ export interface TestResult {
     clone_response: string;
     variant_index: number;
     trace: Record<string, unknown> | null;
+    generation_config: Record<string, unknown> | null;
     evaluations: Evaluation[];
     created_at: string;
 }
@@ -201,6 +202,9 @@ export interface CloneRequest {
     relationship_info?: Record<string, unknown>;
     conversation_history?: Record<string, unknown>[];
     autonomy_mode?: string;
+    scenario_id?: string;
+    gold_answer?: string;
+    save_result?: boolean;
 }
 
 export interface CloneResponse {
@@ -209,6 +213,8 @@ export interface CloneResponse {
     trace: Record<string, unknown> | null;
     requires_review: boolean;
     alternative_responses: string[];
+    test_result_id?: string | null;
+    evaluation?: Evaluation | null;
 }
 
 export interface HealthStatus {
