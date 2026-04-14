@@ -11,6 +11,8 @@ import type {
     CloneResponse,
     ImprovementSuggestion,
     ApplyFixResponse,
+    GraphNode,
+    GraphEdge,
     GraphSubgraph,
     Evaluation,
     HealthStatus,
@@ -263,6 +265,42 @@ export const graphApi = {
             }
         });
     },
+    // ── Node CRUD ──
+    updateNode: (
+        nodeId: string,
+        data: {
+            label?: string;
+            type?: string;
+            properties?: Record<string, unknown>;
+        },
+    ) =>
+        api
+            .patch<GraphNode>(`/graph/nodes/${nodeId}`, data)
+            .then((r) => r.data),
+    deleteNode: (nodeId: string) =>
+        api.delete(`/graph/nodes/${nodeId}`).then((r) => r.data),
+    // ── Edge CRUD ──
+    createEdge: (data: {
+        persona_id: string;
+        source: string;
+        target: string;
+        type: string;
+        properties?: Record<string, unknown>;
+    }) => api.post<GraphEdge>(`/graph/edges`, data).then((r) => r.data),
+    updateEdge: (
+        edgeId: string,
+        data: { type?: string; properties?: Record<string, unknown> },
+    ) =>
+        api
+            .patch<GraphEdge>(
+                `/graph/edges/${encodeURIComponent(edgeId)}`,
+                data,
+            )
+            .then((r) => r.data),
+    deleteEdge: (edgeId: string) =>
+        api
+            .delete(`/graph/edges/${encodeURIComponent(edgeId)}`)
+            .then((r) => r.data),
 };
 
 // ── Admin ───────────────────────────────────────────────

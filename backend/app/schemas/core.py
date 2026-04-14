@@ -251,6 +251,25 @@ class GraphQueryRequest(BaseModel):
     limit: int = 100
 
 
+class GraphNodeUpdate(BaseModel):
+    label: str | None = None
+    type: str | None = None
+    properties: dict | None = None
+
+
+class GraphEdgeCreate(BaseModel):
+    persona_id: UUID
+    source: str
+    target: str
+    type: str
+    properties: dict = {}
+
+
+class GraphEdgeUpdate(BaseModel):
+    type: str | None = None
+    properties: dict | None = None
+
+
 # ── Improvement suggestions ──────────────────────────────
 
 

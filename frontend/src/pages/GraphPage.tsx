@@ -8,13 +8,26 @@ import {
     useEdgesState,
     type Node,
     type Edge,
+    type EdgeMouseHandler,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { useAppStore } from "../store/useAppStore";
 import { graphApi } from "../api/client";
 import type { GraphNode, GraphEdge, RebuildProgress } from "../types";
 import TipBox from "../components/TipBox";
-import { RefreshCw, Zap, Search, X } from "lucide-react";
+import {
+    RefreshCw,
+    Zap,
+    Search,
+    X,
+    Pencil,
+    Trash2,
+    Plus,
+    Save,
+    Link,
+    Check,
+} from "lucide-react";
+import { EDGE_TYPES } from "../graphConstants";
 
 const NODE_COLORS: Record<string, string> = {
     episodic: "#8b5cf6",
@@ -45,10 +58,27 @@ export default function GraphPage() {
     const [search, setSearch] = useState("");
     const [typeFilter, setTypeFilter] = useState("");
     const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
+    const [selectedEdge, setSelectedEdge] = useState<GraphEdge | null>(null);
     const [loading, setLoading] = useState(false);
     const [rebuilding, setRebuilding] = useState(false);
     const [rebuildProgress, setRebuildProgress] =
         useState<RebuildProgress | null>(null);
+
+    // ── Editing state ───────────────────────────────────
+    const [editingNode, setEditingNode] = useState(false);
+    const [editNodeLabel, setEditNodeLabel] = useState("");
+    const [editNodeType, setEditNodeType] = useState("");
+    const [editingEdge, setEditingEdge] = useState(false);
+    const [editEdgeType, setEditEdgeType] = useState("");
+    const [saving, setSaving] = useState(false);
+
+    // ── "Add Edge" mode ─────────────────────────────────
+    const [addEdgeMode, setAddEdgeMode] = useState(false);
+    const [addEdgeSource, setAddEdgeSource] = useState<string | null>(null);
+    const [newEdgeType, setNewEdgeType] = useState("RELATES_TO");
+
+    // keep a raw edge list for lookups
+    const [rawEdges, setRawEdges] = useState<GraphEdge[]>([]);
 
     const loadGraph = useCallback(async () => {
         if (!activePersonaId) return;
@@ -94,6 +124,7 @@ export default function GraphPage() {
 
             setNodes(flowNodes);
             setEdges(flowEdges);
+            setRawEdges(data.edges);
         } finally {
             setLoading(false);
         }
@@ -104,7 +135,127 @@ export default function GraphPage() {
     }, [loadGraph]);
 
     const handleNodeClick = (_: React.MouseEvent, node: Node) => {
+        if (addEdgeMode) {
+            const nodeId = node.id;
+            if (!addEdgeSource) {
+                setAddEdgeSource(nodeId);
+            } else if (nodeId !== addEdgeSource) {
+                handleCreateEdge(addEdgeSource, nodeId);
+            }
+            return;
+        }
+        setSelectedEdge(null);
+        setEditingEdge(false);
         setSelectedNode(node.data as unknown as GraphNode);
+        setEditingNode(false);
+    };
+
+    const handleEdgeClick: EdgeMouseHandler = (_, edge) => {
+        if (addEdgeMode) return;
+        setSelectedNode(null);
+        setEditingNode(false);
+        const raw = rawEdges.find((e) => e.id === edge.id);
+        if (raw) {
+            setSelectedEdge(raw);
+            setEditingEdge(false);
+            setEditEdgeType(raw.type);
+        }
+    };
+
+    // ── Node editing handlers ───────────────────────────
+    const startEditNode = () => {
+        if (!selectedNode) return;
+        setEditNodeLabel(selectedNode.label);
+        setEditNodeType(selectedNode.type);
+        setEditingNode(true);
+    };
+
+    const saveNode = async () => {
+        if (!selectedNode) return;
+        setSaving(true);
+        try {
+            const updated = await graphApi.updateNode(selectedNode.id, {
+                label: editNodeLabel,
+                type: editNodeType,
+            });
+            setSelectedNode(updated);
+            setEditingNode(false);
+            await loadGraph();
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const deleteNode = async () => {
+        if (!selectedNode) return;
+        setSaving(true);
+        try {
+            await graphApi.deleteNode(selectedNode.id);
+            setSelectedNode(null);
+            await loadGraph();
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    // ── Edge editing handlers ───────────────────────────
+    const startEditEdge = () => {
+        if (!selectedEdge) return;
+        setEditEdgeType(selectedEdge.type);
+        setEditingEdge(true);
+    };
+
+    const saveEdge = async () => {
+        if (!selectedEdge) return;
+        setSaving(true);
+        try {
+            const updated = await graphApi.updateEdge(selectedEdge.id, {
+                type: editEdgeType,
+            });
+            setSelectedEdge(updated);
+            setEditingEdge(false);
+            await loadGraph();
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const deleteEdge = async () => {
+        if (!selectedEdge) return;
+        setSaving(true);
+        try {
+            await graphApi.deleteEdge(selectedEdge.id);
+            setSelectedEdge(null);
+            await loadGraph();
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    // ── Add edge ────────────────────────────────────────
+    const handleCreateEdge = async (srcId: string, tgtId: string) => {
+        if (!activePersonaId) return;
+        setSaving(true);
+        try {
+            await graphApi.createEdge({
+                persona_id: activePersonaId,
+                source: srcId,
+                target: tgtId,
+                type: newEdgeType,
+            });
+            await loadGraph();
+        } finally {
+            setSaving(false);
+            setAddEdgeMode(false);
+            setAddEdgeSource(null);
+        }
+    };
+
+    const toggleAddEdgeMode = () => {
+        setAddEdgeMode(!addEdgeMode);
+        setAddEdgeSource(null);
+        setSelectedNode(null);
+        setSelectedEdge(null);
     };
 
     const handleRebuild = async () => {
@@ -179,12 +330,57 @@ export default function GraphPage() {
                         <Zap className="w-4 h-4" />{" "}
                         {rebuilding ? "Rebuilding..." : "Rebuild Graph"}
                     </button>
+                    <button
+                        onClick={toggleAddEdgeMode}
+                        className={
+                            addEdgeMode
+                                ? "btn-primary ring-2 ring-green-400"
+                                : "btn-secondary"
+                        }
+                    >
+                        <Link className="w-4 h-4" />{" "}
+                        {addEdgeMode ? "Cancel" : "Add Edge"}
+                    </button>
                     {loading && !rebuilding && (
                         <span className="text-sm text-slate-500 animate-pulse">
                             Loading...
                         </span>
                     )}
+                    {saving && (
+                        <span className="text-sm text-indigo-400 animate-pulse">
+                            Saving...
+                        </span>
+                    )}
                 </div>
+                {/* Add Edge info bar */}
+                {addEdgeMode && (
+                    <div className="flex items-center gap-3 bg-green-900/30 border border-green-700/50 rounded-lg px-4 py-2 text-sm">
+                        <span className="text-green-300 font-medium">
+                            {!addEdgeSource
+                                ? "Click the SOURCE node"
+                                : "Now click the TARGET node"}
+                        </span>
+                        <select
+                            className="input w-auto text-xs"
+                            value={newEdgeType}
+                            onChange={(e) => setNewEdgeType(e.target.value)}
+                        >
+                            {EDGE_TYPES.map((t) => (
+                                <option key={t} value={t}>
+                                    {t}
+                                </option>
+                            ))}
+                        </select>
+                        {addEdgeSource && (
+                            <span className="text-xs text-slate-400">
+                                Source:{" "}
+                                <code className="text-green-400">
+                                    {addEdgeSource.slice(0, 12)}…
+                                </code>
+                            </span>
+                        )}
+                    </div>
+                )}
                 <TipBox
                     title="Knowledge Graph — your clone's relational brain"
                     defaultOpen={false}
@@ -200,8 +396,16 @@ export default function GraphPage() {
                             memories. Do this after adding many new ones
                         </li>
                         <li>
-                            <strong>Click any node</strong> to inspect its
-                            properties in the detail panel
+                            <strong>Click any node</strong> to inspect and edit
+                            its label, type, or delete it
+                        </li>
+                        <li>
+                            <strong>Click any edge</strong> to edit the
+                            relationship type or delete it
+                        </li>
+                        <li>
+                            <strong>Add Edge</strong> — click two nodes to
+                            create a new relationship between them
                         </li>
                         <li>
                             <strong>Search + filter</strong> to focus on
@@ -275,6 +479,7 @@ export default function GraphPage() {
                         onNodesChange={onNodesChange}
                         onEdgesChange={onEdgesChange}
                         onNodeClick={handleNodeClick}
+                        onEdgeClick={handleEdgeClick}
                         fitView
                         proOptions={{ hideAttribution: true }}
                     >
@@ -291,11 +496,14 @@ export default function GraphPage() {
                     </ReactFlow>
                 </div>
 
-                {/* Detail panel */}
+                {/* Detail panel — Node */}
                 {selectedNode && (
                     <div
                         className="fixed inset-0 z-50 bg-black/50 lg:static lg:inset-auto lg:z-auto lg:bg-transparent"
-                        onClick={() => setSelectedNode(null)}
+                        onClick={() => {
+                            setSelectedNode(null);
+                            setEditingNode(false);
+                        }}
                     >
                         <div
                             className="absolute right-0 top-0 bottom-0 w-[85vw] sm:w-80 bg-slate-900/95 backdrop-blur-sm border-l border-slate-700/50 p-5 overflow-y-auto lg:static lg:w-80"
@@ -305,31 +513,94 @@ export default function GraphPage() {
                                 <h3 className="font-semibold text-sm text-white">
                                     Node Details
                                 </h3>
-                                <button
-                                    onClick={() => setSelectedNode(null)}
-                                    className="text-slate-500 hover:text-slate-300 transition-colors"
-                                >
-                                    <X className="w-4 h-4" />
-                                </button>
+                                <div className="flex items-center gap-1">
+                                    {!editingNode ? (
+                                        <>
+                                            <button
+                                                onClick={startEditNode}
+                                                className="p-1 text-slate-400 hover:text-indigo-400 transition-colors"
+                                                title="Edit node"
+                                            >
+                                                <Pencil className="w-3.5 h-3.5" />
+                                            </button>
+                                            <button
+                                                onClick={deleteNode}
+                                                className="p-1 text-slate-400 hover:text-red-400 transition-colors"
+                                                title="Delete node"
+                                            >
+                                                <Trash2 className="w-3.5 h-3.5" />
+                                            </button>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <button
+                                                onClick={saveNode}
+                                                disabled={saving}
+                                                className="p-1 text-green-400 hover:text-green-300 transition-colors"
+                                                title="Save"
+                                            >
+                                                <Check className="w-3.5 h-3.5" />
+                                            </button>
+                                            <button
+                                                onClick={() =>
+                                                    setEditingNode(false)
+                                                }
+                                                className="p-1 text-slate-400 hover:text-slate-300 transition-colors"
+                                                title="Cancel"
+                                            >
+                                                <X className="w-3.5 h-3.5" />
+                                            </button>
+                                        </>
+                                    )}
+                                    <button
+                                        onClick={() => {
+                                            setSelectedNode(null);
+                                            setEditingNode(false);
+                                        }}
+                                        className="p-1 text-slate-500 hover:text-slate-300 transition-colors"
+                                    >
+                                        <X className="w-4 h-4" />
+                                    </button>
+                                </div>
                             </div>
                             <div className="space-y-3 text-sm">
                                 <div>
                                     <span className="text-slate-500 text-xs uppercase tracking-wider">
                                         Label
                                     </span>
-                                    <p className="text-white font-medium mt-0.5">
-                                        {selectedNode.label}
-                                    </p>
+                                    {editingNode ? (
+                                        <input
+                                            className="input mt-1 w-full"
+                                            value={editNodeLabel}
+                                            onChange={(e) =>
+                                                setEditNodeLabel(e.target.value)
+                                            }
+                                        />
+                                    ) : (
+                                        <p className="text-white font-medium mt-0.5">
+                                            {selectedNode.label}
+                                        </p>
+                                    )}
                                 </div>
                                 <div>
                                     <span className="text-slate-500 text-xs uppercase tracking-wider">
                                         Type
                                     </span>
-                                    <div className="mt-1">
-                                        <span className="badge-indigo">
-                                            {selectedNode.type}
-                                        </span>
-                                    </div>
+                                    {editingNode ? (
+                                        <input
+                                            className="input mt-1 w-full"
+                                            value={editNodeType}
+                                            onChange={(e) =>
+                                                setEditNodeType(e.target.value)
+                                            }
+                                        />
+                                    ) : (
+                                        <div className="mt-1">
+                                            <span className="badge-indigo">
+                                                {selectedNode.type}
+                                            </span>
+                                        </div>
+                                    )}
                                 </div>
                                 <div>
                                     <span className="text-slate-500 text-xs uppercase tracking-wider">
@@ -341,6 +612,153 @@ export default function GraphPage() {
                                 </div>
                                 {selectedNode.properties &&
                                     Object.entries(selectedNode.properties).map(
+                                        ([k, v]) => (
+                                            <div key={k}>
+                                                <span className="text-slate-500 text-xs uppercase tracking-wider">
+                                                    {k}
+                                                </span>
+                                                <p className="text-slate-300 mt-0.5 text-sm">
+                                                    {typeof v === "object"
+                                                        ? JSON.stringify(v)
+                                                        : String(v)}
+                                                </p>
+                                            </div>
+                                        ),
+                                    )}
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Detail panel — Edge */}
+                {selectedEdge && (
+                    <div
+                        className="fixed inset-0 z-50 bg-black/50 lg:static lg:inset-auto lg:z-auto lg:bg-transparent"
+                        onClick={() => {
+                            setSelectedEdge(null);
+                            setEditingEdge(false);
+                        }}
+                    >
+                        <div
+                            className="absolute right-0 top-0 bottom-0 w-[85vw] sm:w-80 bg-slate-900/95 backdrop-blur-sm border-l border-slate-700/50 p-5 overflow-y-auto lg:static lg:w-80"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <div className="flex items-center justify-between mb-4">
+                                <h3 className="font-semibold text-sm text-white">
+                                    Edge Details
+                                </h3>
+                                <div className="flex items-center gap-1">
+                                    {!editingEdge ? (
+                                        <>
+                                            <button
+                                                onClick={startEditEdge}
+                                                className="p-1 text-slate-400 hover:text-indigo-400 transition-colors"
+                                                title="Edit edge"
+                                            >
+                                                <Pencil className="w-3.5 h-3.5" />
+                                            </button>
+                                            <button
+                                                onClick={deleteEdge}
+                                                className="p-1 text-slate-400 hover:text-red-400 transition-colors"
+                                                title="Delete edge"
+                                            >
+                                                <Trash2 className="w-3.5 h-3.5" />
+                                            </button>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <button
+                                                onClick={saveEdge}
+                                                disabled={saving}
+                                                className="p-1 text-green-400 hover:text-green-300 transition-colors"
+                                                title="Save"
+                                            >
+                                                <Check className="w-3.5 h-3.5" />
+                                            </button>
+                                            <button
+                                                onClick={() =>
+                                                    setEditingEdge(false)
+                                                }
+                                                className="p-1 text-slate-400 hover:text-slate-300 transition-colors"
+                                                title="Cancel"
+                                            >
+                                                <X className="w-3.5 h-3.5" />
+                                            </button>
+                                        </>
+                                    )}
+                                    <button
+                                        onClick={() => {
+                                            setSelectedEdge(null);
+                                            setEditingEdge(false);
+                                        }}
+                                        className="p-1 text-slate-500 hover:text-slate-300 transition-colors"
+                                    >
+                                        <X className="w-4 h-4" />
+                                    </button>
+                                </div>
+                            </div>
+                            <div className="space-y-3 text-sm">
+                                <div>
+                                    <span className="text-slate-500 text-xs uppercase tracking-wider">
+                                        Relationship Type
+                                    </span>
+                                    {editingEdge ? (
+                                        <select
+                                            className="input mt-1 w-full"
+                                            value={editEdgeType}
+                                            onChange={(e) =>
+                                                setEditEdgeType(e.target.value)
+                                            }
+                                        >
+                                            {EDGE_TYPES.map((t) => (
+                                                <option key={t} value={t}>
+                                                    {t}
+                                                </option>
+                                            ))}
+                                            {!EDGE_TYPES.includes(
+                                                editEdgeType,
+                                            ) && (
+                                                <option value={editEdgeType}>
+                                                    {editEdgeType}
+                                                </option>
+                                            )}
+                                        </select>
+                                    ) : (
+                                        <div className="mt-1">
+                                            <span className="badge-indigo">
+                                                {selectedEdge.type}
+                                            </span>
+                                        </div>
+                                    )}
+                                </div>
+                                <div>
+                                    <span className="text-slate-500 text-xs uppercase tracking-wider">
+                                        Source
+                                    </span>
+                                    <p className="font-mono text-xs text-slate-400 mt-0.5 break-all">
+                                        {selectedEdge.source}
+                                    </p>
+                                </div>
+                                <div>
+                                    <span className="text-slate-500 text-xs uppercase tracking-wider">
+                                        Target
+                                    </span>
+                                    <p className="font-mono text-xs text-slate-400 mt-0.5 break-all">
+                                        {selectedEdge.target}
+                                    </p>
+                                </div>
+                                <div>
+                                    <span className="text-slate-500 text-xs uppercase tracking-wider">
+                                        ID
+                                    </span>
+                                    <p className="font-mono text-xs text-slate-400 mt-0.5 break-all">
+                                        {selectedEdge.id}
+                                    </p>
+                                </div>
+                                {selectedEdge.properties &&
+                                    Object.keys(selectedEdge.properties)
+                                        .length > 0 &&
+                                    Object.entries(selectedEdge.properties).map(
                                         ([k, v]) => (
                                             <div key={k}>
                                                 <span className="text-slate-500 text-xs uppercase tracking-wider">

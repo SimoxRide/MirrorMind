@@ -1,9 +1,9 @@
-"""Graph API routes — query, ingest, subgraph fetch."""
+"""Graph API routes — query, ingest, subgraph fetch, CRUD."""
 
 import json
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -11,7 +11,15 @@ from app.core.logging import get_logger
 from app.db.session import get_db
 from app.graphrag.ingestion import GraphIngestionPipeline
 from app.graphrag.retrieval import GraphRetriever
-from app.schemas.core import GraphQueryRequest, GraphSubgraph
+from app.schemas.core import (
+    GraphEdge,
+    GraphEdgeCreate,
+    GraphEdgeUpdate,
+    GraphNode,
+    GraphNodeUpdate,
+    GraphQueryRequest,
+    GraphSubgraph,
+)
 
 logger = get_logger("graph")
 
@@ -140,3 +148,74 @@ async def rebuild_graph(
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+# ── Node CRUD ────────────────────────────────────────────
+
+
+@router.patch("/nodes/{node_id}", response_model=GraphNode)
+async def update_node(node_id: str, body: GraphNodeUpdate):
+    """Update a node's label, type, or properties."""
+    retriever = GraphRetriever()
+    result = await retriever.update_node(
+        node_id,
+        label=body.label,
+        node_type=body.type,
+        properties=body.properties,
+    )
+    if not result:
+        raise HTTPException(404, "Node not found or no changes applied")
+    props = result.get("properties") or {}
+    return GraphNode(
+        id=result["id"],
+        label=result["label"],
+        type=result["type"],
+        properties={k: v for k, v in props.items() if k not in ("uid", "persona_id")},
+    )
+
+
+@router.delete("/nodes/{node_id}")
+async def delete_node(node_id: str):
+    """Delete a node and all its relationships."""
+    retriever = GraphRetriever()
+    ok = await retriever.delete_node(node_id)
+    if not ok:
+        raise HTTPException(404, "Node not found")
+    return {"status": "ok"}
+
+
+# ── Edge CRUD ────────────────────────────────────────────
+
+
+@router.post("/edges", response_model=GraphEdge)
+async def create_edge(body: GraphEdgeCreate):
+    """Create a new relationship between two nodes."""
+    retriever = GraphRetriever()
+    result = await retriever.create_edge(
+        body.source, body.target, body.type, body.properties or None
+    )
+    if not result:
+        raise HTTPException(404, "Source or target node not found")
+    return GraphEdge(**result)
+
+
+@router.patch("/edges/{edge_id:path}", response_model=GraphEdge)
+async def update_edge(edge_id: str, body: GraphEdgeUpdate):
+    """Update an edge's type or properties."""
+    retriever = GraphRetriever()
+    result = await retriever.update_edge(
+        edge_id, edge_type=body.type, properties=body.properties
+    )
+    if not result:
+        raise HTTPException(404, "Edge not found or no changes applied")
+    return GraphEdge(**result)
+
+
+@router.delete("/edges/{edge_id:path}")
+async def delete_edge(edge_id: str):
+    """Delete a relationship."""
+    retriever = GraphRetriever()
+    ok = await retriever.delete_edge(edge_id)
+    if not ok:
+        raise HTTPException(404, "Edge not found")
+    return {"status": "ok"}
