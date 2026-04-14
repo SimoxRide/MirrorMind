@@ -25,6 +25,8 @@ import type {
     DocumentAnalysis,
     QuickImportResult,
     ProviderSettings,
+    Extension,
+    ExtensionPlatform,
 } from "../types";
 
 const api = axios.create({
@@ -393,4 +395,31 @@ export const productionApi = {
         api
             .post<ProductionClone>(`/production/clones/${id}/regenerate-key`)
             .then((r) => r.data),
+};
+
+// ── Extensions ─────────────────────────────────────────
+
+export const extensionApi = {
+    platforms: () =>
+        api
+            .get<ExtensionPlatform[]>("/extensions/platforms")
+            .then((r) => r.data),
+    list: (personaId: string) =>
+        api
+            .get<
+                Extension[]
+            >("/extensions/", { params: { persona_id: personaId } })
+            .then((r) => r.data),
+    create: (data: {
+        persona_id: string;
+        platform: string;
+        label?: string;
+        credentials?: Record<string, string>;
+        config?: Record<string, unknown>;
+    }) => api.post<Extension>("/extensions/", data).then((r) => r.data),
+    update: (id: string, data: Partial<Extension>) =>
+        api.patch<Extension>(`/extensions/${id}`, data).then((r) => r.data),
+    delete: (id: string) => api.delete(`/extensions/${id}`),
+    toggle: (id: string) =>
+        api.post<Extension>(`/extensions/${id}/toggle`).then((r) => r.data),
 };

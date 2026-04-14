@@ -343,3 +343,32 @@ export interface DocumentAnalysis {
     }>;
     traits: ExtractedTrait[];
 }
+
+// ── Extensions ──────────────────────────────────────────
+
+export interface Extension {
+    id: string;
+    persona_id: string;
+    platform: string;
+    label: string;
+    is_active: boolean;
+    credentials: Record<string, string> | null;
+    config: Record<string, unknown> | null;
+    bot_running: boolean;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface ExtensionPlatform {
+    id: string;
+    name: string;
+    description: string;
+    icon: string;
+    credential_fields: {
+        key: string;
+        label: string;
+        type: string;
+        placeholder: string;
+        help: string;
+    }[];
+}

@@ -9,6 +9,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import get_settings
 from app.core.logging import setup_logging, get_logger
 from app.graphrag.neo4j_client import close_neo4j
+from app.workers import discord_bot as discord_worker
+from app.workers import telegram_bot as telegram_worker
 
 logger = get_logger("app")
 
@@ -21,7 +23,11 @@ async def lifespan(app: FastAPI):
         version=get_settings().app_version,
         model=get_settings().openai_model,
     )
+    await telegram_worker.resume_all_bots()
+    await discord_worker.resume_all_bots()
     yield
+    await telegram_worker.stop_all_bots()
+    await discord_worker.stop_all_bots()
     await close_neo4j()
     logger.info("app_shutdown")
 
@@ -81,6 +87,7 @@ def create_app() -> FastAPI:
         admin,
         agent_configs,
         auth,
+        extensions,
         graph,
         interviews,
         io,
@@ -108,6 +115,7 @@ def create_app() -> FastAPI:
     app.include_router(io.router, prefix="/api/v1")
     app.include_router(admin.router, prefix="/api/v1")
     app.include_router(production.router, prefix="/api/v1")
+    app.include_router(extensions.router, prefix="/api/v1")
 
     return app
 
