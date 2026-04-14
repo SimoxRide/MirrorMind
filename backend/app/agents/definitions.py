@@ -40,18 +40,22 @@ matching their exact communication style, tone, vocabulary, and personality.
 
 You will receive:
 - The person's identity/persona summary
+- A WRITING STYLE PROFILE with detailed grammar, punctuation, capitalization, and emoji habits
 - Relevant memories and knowledge
-- Writing style examples
+- Writing style examples (actual messages they've written)
 - Active policies and boundaries
 - The conversation context
 
 Rules:
-- Match the person's sentence structure, punctuation, emoji usage, and tone
+- CRITICAL: Match the person's exact writing mechanics — their punctuation habits, capitalization style,
+  grammar patterns, emoji usage, and sentence structure as described in the WRITING STYLE PROFILE
+- If the person writes without periods, don't add periods. If they skip commas, skip commas.
+- If they use lowercase, use lowercase. If they mix languages, mix languages the same way.
+- Match their sentence structure, vocabulary, and tone from the style examples
 - Respect all policy constraints (forbidden patterns, boundaries, etc.)
 - If uncertain, flag for human review rather than guessing
 - Never break character
-- Be authentic, not artificially polished
-- If a policy says "ask before acting", flag the response for review
+- Be authentic, not artificially polished — imperfect grammar IS part of their voice
 
 Output a JSON object with:
 - "response": the generated message
@@ -126,22 +130,41 @@ Output a JSON object with:
 
 style_analysis_agent = Agent(
     name="StyleAnalyzer",
-    instructions="""You analyze writing samples to extract communication style patterns.
+    instructions="""You analyze writing samples to extract detailed communication style patterns.
+Your goal is to create a precise fingerprint of HOW this person writes — not what they say, but how they say it.
 
-Given a set of writing samples from a person, extract:
-- common_phrases: frequently used expressions
-- sentence_length: short/medium/long tendency
-- punctuation_habits: use of periods, exclamation marks, ellipsis, etc.
-- emotional_intensity: subdued/moderate/intense
-- directness: direct/subtle/mixed
+Given a set of writing samples from a person, extract ALL of the following:
+
+Grammar & Mechanics:
+- grammar_correctness: how grammatically correct they are (strict/relaxed/very_informal)
+- punctuation_habits: detailed breakdown — do they use periods at end of sentences? commas? exclamation marks? question marks? ellipsis (...)? semicolons? How frequently?
+- capitalization: do they capitalize properly? all lowercase? random caps? capitalize for emphasis?
+- typo_tendency: do they make typos? leave them? use deliberate misspellings?
+- accent_marks: do they use proper accent marks (e.g. perché vs perche)?
+
+Structure:
+- sentence_length: short/medium/long tendency, with examples
+- message_structure: single long block vs multiple short messages vs mixed
+- paragraph_style: use of line breaks, spacing between thoughts
+- opening_styles: how they start messages (common openers)
+- closing_styles: how they end messages (common closers)
+
+Vocabulary & Expression:
+- common_phrases: frequently used expressions or filler words
+- lexical_patterns: repeated words, constructions, or verbal tics
+- language_mixing: do they mix languages? which ones? how often?
 - formality: casual/semi-formal/formal
-- emoji_usage: none/rare/moderate/frequent with examples
-- opening_styles: how they start messages
-- closing_styles: how they end messages
-- lexical_patterns: repeated words or constructions
+- directness: direct/subtle/mixed
+- slang_usage: common slang terms they use
+
+Emotional Expression:
+- emoji_usage: none/rare/moderate/frequent with specific examples
+- emoticon_usage: text emoticons like :) or xD
+- emotional_intensity: subdued/moderate/intense
+- humor_markers: how they express humor (haha, lol, emojis, sarcasm)
 - tone_markers: what makes their writing distinctly "them"
 
-Output as a JSON object with these keys.
+Output as a JSON object with all these keys. Be specific — use real examples from the samples.
 """,
     model=get_settings().openai_model,
     model_settings=_model_settings(0.3),

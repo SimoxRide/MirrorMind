@@ -325,8 +325,18 @@ class CloneEngine:
             f"Modes: {json.dumps(persona.modes or {})}",
             f"Never Say: {json.dumps(persona.never_say or [])}",
             f"Autonomy Level: {persona.autonomy_level}",
-            "",
-            "=== RELEVANT MEMORIES ===",
+        ]
+
+        # Style profile — grammar, punctuation, emoji habits, etc.
+        if persona.style_profile:
+            parts.append("")
+            parts.append("=== WRITING STYLE PROFILE ===")
+            parts.append("IMPORTANT: Replicate these exact writing habits — grammar, punctuation, capitalization, emoji usage, etc.")
+            for key, value in persona.style_profile.items():
+                parts.append(f"- {key}: {json.dumps(value) if isinstance(value, (dict, list)) else value}")
+
+        parts.append("")
+        parts.append("=== RELEVANT MEMORIES ==="),
         ]
         for m in memories[:10]:
             parts.append(f"- [{m['type']}] {m['title']}: {m['content'][:200]}")

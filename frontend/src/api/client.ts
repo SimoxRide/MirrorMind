@@ -154,6 +154,13 @@ export const writingSampleApi = {
             .patch<WritingSample>(`/writing-samples/${id}`, data)
             .then((r) => r.data),
     delete: (id: string) => api.delete(`/writing-samples/${id}`),
+    analyzeStyle: (personaId: string) =>
+        api
+            .post<{
+                style_profile: Record<string, unknown>;
+                samples_analyzed: number;
+            }>("/writing-samples/analyze-style", null, { params: { persona_id: personaId } })
+            .then((r) => r.data),
 };
 
 // ── Policies ────────────────────────────────────────────

@@ -53,6 +53,7 @@ export interface PersonaCore {
     ask_before_acting: string[] | null;
     confidence_threshold: number | null;
     autonomy_level: string;
+    style_profile: Record<string, unknown> | null;
     created_at: string;
     updated_at: string;
 }

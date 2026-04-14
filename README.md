@@ -23,12 +23,15 @@ Whether you want an AI that answers customers in your voice, a digital twin for 
 | **Training Lab**     | Generate targeted questions, submit answers, and let the system analyze weak spots                                                    |
 | **Evaluation**       | Score responses on accuracy, tone fidelity, memory usage, and policy compliance                                                       |
 | **Production**       | Deploy trained clones as authenticated REST API endpoints, ready to integrate anywhere                                                |
+| **Extensions**       | Connect your clone to Telegram, Discord, WhatsApp — paste a token, toggle on, done                                                    |
 | **Document Import**  | Upload PDF, DOCX, TXT, MD, or JSON documents and extract persona updates, memories, writing samples, and policies with dedupe preview |
 | **Quick Import**     | Copy a prompt into ChatGPT, paste back the JSON, and auto-populate memories, writing samples, and policies in seconds                 |
 
 ### Key features
 
 - **7 specialized AI Agents** — ResponseGenerator, Critic, Interviewer, StyleAnalyzer, TraitExtractor, TrainingQuestionGenerator, TrainingAnalyst
+- **Writing Style Profiling** — automatic analysis of grammar, punctuation, capitalization, emoji habits, and sentence structure
+- **Platform Extensions** — Telegram, Discord, and WhatsApp integrations with per-chat conversation history
 - **OpenAI-compatible** — works with OpenAI, Ollama, LM Studio, Together, Groq, or any v1-compatible provider
 - **Full import/export** — persona bundles as portable JSON
 - **Document ingestion** — chunked multi-format document analysis with duplicate-aware preview and save
@@ -36,12 +39,30 @@ Whether you want an AI that answers customers in your voice, a digital twin for 
 - **Dark theme UI** — modern glass-morphism design with React, TypeScript, and Tailwind CSS
 - **Mobile responsive** — fully usable on phone and tablet
 
-![Version](https://img.shields.io/badge/version-0.1.4-blue)
+![Version](https://img.shields.io/badge/version-0.1.5-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Python](https://img.shields.io/badge/python-3.11+-yellow)
 ![TypeScript](https://img.shields.io/badge/typescript-5.x-blue)
 
 ---
+
+## Release 0.1.5
+
+- Added **Extensions** page — connect your clone to **Telegram**, **Discord**, and **WhatsApp**
+- Telegram: paste a BotFather token, toggle on, your clone responds to Telegram messages
+- Discord: paste a bot token (MESSAGE CONTENT intent required), mention the bot or DM it
+- WhatsApp: provide Cloud API credentials & configure the webhook endpoint
+- All integrations maintain **per-chat conversation history** (20 turns) with `/reset` support
+- Added **Writing Style Profiling** — click "Analyze Style" to extract a grammar/punctuation/emoji fingerprint
+- Style profile captures: punctuation habits, capitalization, grammar correctness, emoji usage, sentence structure, language mixing, and more
+- Style profile is automatically injected into the ResponseGenerator prompt for higher fidelity
+- Bots auto-resume on server restart
+
+## Release 0.1.4
+
+- Added **per-user LLM provider settings** (custom API key, base URL, model override)
+- Added **JWT authentication** with admin setup flow
+- Added **Production Clones** with API key authentication
 
 ## Release 0.1.3
 
@@ -176,8 +197,10 @@ docker compose up --build
 6. Run the clone in the Testing Lab
 7. Compare output with your own answers in Evaluation
 8. Train the clone with targeted Training Lab sessions
-9. Deploy to production via the Production page
-10. Integrate the public API endpoint into your apps
+9. Click **Analyze Style** on the Writing Style page to generate a grammar/punctuation fingerprint
+10. Deploy to production via the Production page
+11. Connect to Telegram, Discord, or WhatsApp from the Extensions page
+12. Integrate the public API endpoint into your apps
 
 ---
 
@@ -278,6 +301,46 @@ X-API-Key: mm_your_api_key_here
 
 ---
 
+## Extensions — Telegram, Discord, WhatsApp
+
+The **Extensions** page lets you connect your clone to messaging platforms. No coding required.
+
+### Telegram
+
+1. Open [@BotFather](https://t.me/BotFather) on Telegram and create a new bot
+2. Copy the bot token
+3. Go to **Extensions** → **Add Extension** → **Telegram**
+4. Paste the token and click **Create**
+5. Toggle the extension **on** — your clone is live on Telegram
+
+Users can DM the bot and it will reply in your clone's voice, with full conversation history.
+
+### Discord
+
+1. Go to [discord.com/developers](https://discord.com/developers/applications) and create an application
+2. Add a **Bot**, enable the **MESSAGE CONTENT** intent
+3. Use the **OAuth2 URL Generator** (scope: `bot`, permission: `Send Messages`) to invite the bot to your server
+4. Copy the bot token
+5. Go to **Extensions** → **Add Extension** → **Discord** → paste the token
+
+Users can mention the bot (`@YourBot`) in any channel or DM it directly.
+
+### WhatsApp
+
+1. Set up a [WhatsApp Business App](https://developers.facebook.com) on Meta
+2. Get your **permanent access token** (System User token) and **Phone Number ID**
+3. Go to **Extensions** → **Add Extension** → **WhatsApp** → fill in access token, phone number ID, and a verify token
+4. In Meta's webhook settings, point to: `POST https://your-server/api/v1/extensions/webhooks/whatsapp/{extension_id}`
+5. Use the verify token you chose in step 3
+
+### Features
+
+- **Conversation history** — each chat keeps up to 20 turns in memory
+- **Reset command** — send `/reset` (Telegram), `!reset` (Discord), or `reset` (WhatsApp) to clear history
+- **Auto-resume** — Telegram and Discord bots restart automatically when the server starts
+
+---
+
 ## OpenAI-Compatible Providers
 
 MirrorMind works with any provider that implements the OpenAI v1 API standard. Set `OPENAI_API_BASE` in your `.env`:
@@ -306,6 +369,7 @@ mirrormind/
 │   │   ├── models/          # SQLAlchemy ORM models
 │   │   ├── schemas/         # Pydantic request/response schemas
 │   │   ├── services/        # Business logic (CloneEngine)
+│   │   ├── workers/         # Background bots (Telegram, Discord, WhatsApp)
 │   │   └── main.py          # App factory
 │   ├── alembic/             # Database migrations
 │   ├── pyproject.toml

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useAppStore } from "../store/useAppStore";
-import { writingSampleApi } from "../api/client";
+import { writingSampleApi, personaApi } from "../api/client";
 import type { WritingSample } from "../types";
 import TipBox from "../components/TipBox";
 import {
@@ -10,6 +10,8 @@ import {
     Trash2,
     ChevronLeft,
     ChevronRight,
+    Sparkles,
+    Loader2,
 } from "lucide-react";
 
 const CONTEXT_TYPES = [
@@ -40,6 +42,11 @@ export default function WritingStylePage() {
     const [editContextType, setEditContextType] = useState("general");
     const [editTone, setEditTone] = useState("");
     const [editNotes, setEditNotes] = useState("");
+    const [analyzing, setAnalyzing] = useState(false);
+    const [styleProfile, setStyleProfile] = useState<Record<
+        string,
+        unknown
+    > | null>(null);
 
     const load = () => {
         if (!activePersonaId) return;
@@ -52,6 +59,9 @@ export default function WritingStylePage() {
                 setSamples(items);
                 setTotal(t);
             });
+        personaApi.get(activePersonaId).then((p) => {
+            setStyleProfile(p.style_profile);
+        });
     };
 
     useEffect(load, [activePersonaId, page]);
@@ -101,6 +111,17 @@ export default function WritingStylePage() {
         load();
     };
 
+    const handleAnalyzeStyle = async () => {
+        if (!activePersonaId) return;
+        setAnalyzing(true);
+        try {
+            const result = await writingSampleApi.analyzeStyle(activePersonaId);
+            setStyleProfile(result.style_profile);
+        } finally {
+            setAnalyzing(false);
+        }
+    };
+
     if (!activePersonaId) {
         return (
             <div className="p-4 sm:p-8 text-slate-500">
@@ -113,20 +134,35 @@ export default function WritingStylePage() {
         <div className="p-4 sm:p-6 lg:p-8 max-w-6xl mx-auto space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <h2 className="page-header">Writing Style Capture</h2>
-                <button
-                    onClick={() => setShowForm(!showForm)}
-                    className={showForm ? "btn-secondary" : "btn-primary"}
-                >
-                    {showForm ? (
-                        <>
-                            <X className="w-4 h-4" /> Cancel
-                        </>
-                    ) : (
-                        <>
-                            <Plus className="w-4 h-4" /> Add Sample
-                        </>
-                    )}
-                </button>
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={handleAnalyzeStyle}
+                        disabled={analyzing || total === 0}
+                        className="btn-secondary text-xs"
+                        title="Analyze all samples to extract your grammar, punctuation, and style fingerprint"
+                    >
+                        {analyzing ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                            <Sparkles className="w-4 h-4" />
+                        )}
+                        {analyzing ? "Analyzing..." : "Analyze Style"}
+                    </button>
+                    <button
+                        onClick={() => setShowForm(!showForm)}
+                        className={showForm ? "btn-secondary" : "btn-primary"}
+                    >
+                        {showForm ? (
+                            <>
+                                <X className="w-4 h-4" /> Cancel
+                            </>
+                        ) : (
+                            <>
+                                <Plus className="w-4 h-4" /> Add Sample
+                            </>
+                        )}
+                    </button>
+                </div>
             </div>
 
             <TipBox title="Writing Style — teach the clone how you write">
@@ -154,6 +190,40 @@ export default function WritingStylePage() {
                     diverse samples is a great start.
                 </p>
             </TipBox>
+
+            {/* Style Profile */}
+            {styleProfile && Object.keys(styleProfile).length > 0 && (
+                <div className="card p-5">
+                    <h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+                        <Sparkles className="w-4 h-4 text-indigo-400" />
+                        Writing Style Profile
+                    </h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {Object.entries(styleProfile).map(([key, value]) => (
+                            <div
+                                key={key}
+                                className="bg-slate-800/50 border border-slate-700/50 rounded-lg p-3"
+                            >
+                                <span className="text-[10px] text-slate-500 uppercase tracking-wider font-medium">
+                                    {key.replace(/_/g, " ")}
+                                </span>
+                                <p className="text-xs text-slate-300 mt-1 whitespace-pre-wrap">
+                                    {typeof value === "object"
+                                        ? Array.isArray(value)
+                                            ? value.join(", ")
+                                            : JSON.stringify(value, null, 2)
+                                        : String(value)}
+                                </p>
+                            </div>
+                        ))}
+                    </div>
+                    <p className="text-[10px] text-slate-600 mt-3">
+                        This profile is automatically injected into the clone
+                        engine prompt so your clone matches your exact writing
+                        habits.
+                    </p>
+                </div>
+            )}
 
             {showForm && (
                 <div className="card p-5 space-y-3">

@@ -38,6 +38,9 @@ class PersonaCore(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     confidence_threshold: Mapped[float | None] = mapped_column(default=0.7)
     autonomy_level: Mapped[str] = mapped_column(String(50), default="medium")
 
+    # --- aggregated writing style profile (populated by style analysis) ---
+    style_profile: Mapped[dict | None] = mapped_column(JSONB, default=dict)
+
     # --- relationships ---
     memories: Mapped[list["Memory"]] = relationship(
         back_populates="persona", lazy="selectin"
