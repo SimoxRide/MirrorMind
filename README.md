@@ -39,7 +39,7 @@ Whether you want an AI that answers customers in your voice, a digital twin for 
 - **Dark theme UI** — modern glass-morphism design with React, TypeScript, and Tailwind CSS
 - **Mobile responsive** — fully usable on phone and tablet
 
-![Version](https://img.shields.io/badge/version-0.1.5-blue)
+![Version](https://img.shields.io/badge/version-0.1.6-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Python](https://img.shields.io/badge/python-3.11+-yellow)
 ![TypeScript](https://img.shields.io/badge/typescript-5.x-blue)
