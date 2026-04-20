@@ -144,7 +144,7 @@ export default function Layout() {
                     Logout
                 </button>
                 <div className="text-[11px] text-slate-600 mt-1 px-3">
-                    v0.1.3
+                    v0.1.6
                 </div>
             </div>
         </>
