@@ -12,6 +12,7 @@ Flow:
 9. Return final response with trace metadata
 """
 
+import asyncio
 import json
 import re
 from uuid import UUID
@@ -72,25 +73,26 @@ class CloneEngine:
             )
         trace["persona_name"] = persona.name
 
-        # Step 2: Retrieve memories
-        memories = await self._retrieve_memories(req.persona_id, req.context_type)
+        # Steps 2-5: Retrieve memories, graph context, style examples, policies in parallel
+        keywords = req.message.split()[:10]
+
+        async def _safe_graph_context():
+            try:
+                return await self.graph_retriever.retrieve_for_context(
+                    req.persona_id, keywords, limit=10
+                )
+            except Exception:
+                return []
+
+        memories, graph_context, style_examples, policies = await asyncio.gather(
+            self._retrieve_memories(req.persona_id, req.context_type),
+            _safe_graph_context(),
+            self._retrieve_style_examples(req.persona_id, req.context_type),
+            self._load_policies(req.persona_id),
+        )
         trace["memories_count"] = len(memories)
-
-        # Step 3: Retrieve graph context
-        keywords = req.message.split()[:10]  # simple keyword extraction
-        graph_context = await self.graph_retriever.retrieve_for_context(
-            req.persona_id, keywords, limit=10
-        )
         trace["graph_nodes_retrieved"] = len(graph_context)
-
-        # Step 4: Retrieve style examples
-        style_examples = await self._retrieve_style_examples(
-            req.persona_id, req.context_type
-        )
         trace["style_examples_count"] = len(style_examples)
-
-        # Step 5: Load policies
-        policies = await self._load_policies(req.persona_id)
         trace["policies_count"] = len(policies)
 
         # Step 6: Assemble context and generate
@@ -104,12 +106,21 @@ class CloneEngine:
         )
 
         # Step 7: Run response generator agent
-        gen_result = await Runner.run(
-            response_generator_agent,
-            input=context_prompt,
-            run_config=provider_settings.to_run_config(),
-        )
-        gen_output = gen_result.final_output
+        try:
+            gen_result = await Runner.run(
+                response_generator_agent,
+                input=context_prompt,
+                run_config=provider_settings.to_run_config(),
+            )
+            gen_output = gen_result.final_output
+        except Exception as exc:
+            logger.error("generator_agent_failed", error=str(exc))
+            return CloneResponse(
+                response="[Generation failed — please try again]",
+                confidence=0.0,
+                trace={"error": f"generator_failed: {exc}"},
+                requires_review=True,
+            )
         trace["raw_generation"] = gen_output
 
         # Parse generator output
@@ -130,15 +141,23 @@ class CloneEngine:
             generated_response=gen_data.get("response", gen_output),
             request=req,
         )
-        critic_result = await Runner.run(
-            critic_agent,
-            input=critic_prompt,
-            run_config=provider_settings.to_run_config(),
-        )
-        trace["critic_output"] = critic_result.final_output
+        try:
+            critic_result = await Runner.run(
+                critic_agent,
+                input=critic_prompt,
+                run_config=provider_settings.to_run_config(),
+            )
+            trace["critic_output"] = critic_result.final_output
+        except Exception as exc:
+            logger.error("critic_agent_failed", error=str(exc))
+            # Critic failure is non-fatal — use generated output as-is
+            critic_result = None
+            trace["critic_output"] = f"critic_failed: {exc}"
 
         try:
-            critic_data = json.loads(critic_result.final_output)
+            critic_data = (
+                json.loads(critic_result.final_output) if critic_result else {}
+            )
         except (json.JSONDecodeError, TypeError):
             critic_data = {"approved": True, "issues": [], "scores": {}}
 
@@ -331,13 +350,16 @@ class CloneEngine:
         if persona.style_profile:
             parts.append("")
             parts.append("=== WRITING STYLE PROFILE ===")
-            parts.append("IMPORTANT: Replicate these exact writing habits — grammar, punctuation, capitalization, emoji usage, etc.")
+            parts.append(
+                "IMPORTANT: Replicate these exact writing habits — grammar, punctuation, capitalization, emoji usage, etc."
+            )
             for key, value in persona.style_profile.items():
-                parts.append(f"- {key}: {json.dumps(value) if isinstance(value, (dict, list)) else value}")
+                parts.append(
+                    f"- {key}: {json.dumps(value) if isinstance(value, (dict, list)) else value}"
+                )
 
         parts.append("")
-        parts.append("=== RELEVANT MEMORIES ==="),
-        ]
+        parts.append("=== RELEVANT MEMORIES ===")
         for m in memories[:10]:
             parts.append(f"- [{m['type']}] {m['title']}: {m['content'][:200]}")
 

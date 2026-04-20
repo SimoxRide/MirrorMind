@@ -33,15 +33,20 @@ const api = axios.create({
     baseURL: "/api/v1",
 });
 
-// ── Auth interceptor ────────────────────────────────────
+// ── Request interceptor — auth token + request-id correlation ──
 api.interceptors.request.use((config) => {
     const token = localStorage.getItem("mm_token");
     if (token) {
         config.headers.Authorization = `Bearer ${token}`;
     }
+    // Generate a unique request ID so backend logs can be correlated
+    config.headers["X-Request-ID"] =
+        crypto.randomUUID?.() ??
+        `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
     return config;
 });
 
+// ── Response interceptor — 401 redirect + error normalisation ──
 api.interceptors.response.use(
     (res) => res,
     (err) => {
@@ -56,6 +61,26 @@ api.interceptors.response.use(
         return Promise.reject(err);
     },
 );
+
+/**
+ * Extract a human-readable error message from an Axios error.
+ * Includes the backend request-id when available so users can
+ * reference it in bug reports.
+ */
+export function extractErrorMessage(err: unknown): string {
+    if (axios.isAxiosError(err)) {
+        const detail =
+            err.response?.data?.detail ??
+            err.response?.statusText ??
+            err.message;
+        const requestId = err.response?.headers?.["x-request-id"];
+        if (requestId) {
+            return `${detail} (request-id: ${requestId})`;
+        }
+        return String(detail);
+    }
+    return String(err);
+}
 
 // ── Auth ────────────────────────────────────────────────
 
@@ -159,7 +184,9 @@ export const writingSampleApi = {
             .post<{
                 style_profile: Record<string, unknown>;
                 samples_analyzed: number;
-            }>("/writing-samples/analyze-style", null, { params: { persona_id: personaId } })
+            }>("/writing-samples/analyze-style", null, {
+                params: { persona_id: personaId },
+            })
             .then((r) => r.data),
 };
 

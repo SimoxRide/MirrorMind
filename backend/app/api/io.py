@@ -1,21 +1,36 @@
 """Import / Export routes — persona bundles, memories, graph snapshots."""
 
+import asyncio
 import json
 from uuid import UUID
 
 from agents import Runner
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Query,
+    Request,
+    Response,
+    UploadFile,
+)
 from fastapi.responses import ORJSONResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.definitions import document_profile_extractor_agent
-from app.core.deps import get_optional_current_user
+from app.core.access import ensure_persona_access
+from app.core.config import get_settings
+from app.core.deps import get_current_user
 from app.core.logging import get_logger
+from app.core.rate_limit import limiter, upload_limit
 from app.db.session import get_db
 from app.ingestion.document_parser import (
     SUPPORTED_DOCUMENT_TYPES,
+    DocumentTooLargeError,
     UnsupportedDocumentTypeError,
     parse_document,
 )
@@ -40,9 +55,13 @@ logger = get_logger("io")
 
 
 @router.get("/export/persona/{persona_id}")
-async def export_persona_bundle(persona_id: UUID, db: AsyncSession = Depends(get_db)):
+async def export_persona_bundle(
+    persona_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
     """Export full persona bundle as JSON."""
-    persona = await db.get(PersonaCore, persona_id)
+    persona = await ensure_persona_access(persona_id, user, db)
     if not persona:
         return ORJSONResponse({"error": "Persona not found"}, status_code=404)
 
@@ -91,7 +110,11 @@ async def export_persona_bundle(persona_id: UUID, db: AsyncSession = Depends(get
 
 
 @router.post("/import/persona")
-async def import_persona_bundle(bundle: dict, db: AsyncSession = Depends(get_db)):
+async def import_persona_bundle(
+    bundle: dict,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
     """Import a persona bundle from JSON.
 
     This creates a new persona with new UUIDs, preserving content.
@@ -100,6 +123,7 @@ async def import_persona_bundle(bundle: dict, db: AsyncSession = Depends(get_db)
 
     persona_data = bundle.get("persona", {})
     persona = PersonaCore(
+        owner_id=user.id,
         name=persona_data.get("name", "Imported Persona"),
         identity_summary=persona_data.get("identity_summary", ""),
         values=persona_data.get("values"),
@@ -317,14 +341,28 @@ async def _apply_import_data(
     import_source = _make_source_label(source_label)
     metadata_extra = {"source_label": source_label} if source_label else None
     existing_memories = (
-        await db.execute(select(Memory).where(Memory.persona_id == persona.id))
-    ).scalars().all()
+        (await db.execute(select(Memory).where(Memory.persona_id == persona.id)))
+        .scalars()
+        .all()
+    )
     existing_writing_samples = (
-        await db.execute(select(WritingSample).where(WritingSample.persona_id == persona.id))
-    ).scalars().all()
+        (
+            await db.execute(
+                select(WritingSample).where(WritingSample.persona_id == persona.id)
+            )
+        )
+        .scalars()
+        .all()
+    )
     existing_policies = (
-        await db.execute(select(PolicyRule).where(PolicyRule.persona_id == persona.id))
-    ).scalars().all()
+        (
+            await db.execute(
+                select(PolicyRule).where(PolicyRule.persona_id == persona.id)
+            )
+        )
+        .scalars()
+        .all()
+    )
 
     existing_index = build_existing_import_index(
         list(existing_memories),
@@ -438,28 +476,39 @@ async def _apply_import_data(
 
 
 @router.post("/analyze-document", response_model=DocumentAnalysisResponse)
+@limiter.limit(upload_limit())
 async def analyze_document(
+    request: Request,
+    response: Response,
     persona_id: UUID = Form(...),
     source_kind: str = Form("general"),
     notes: str = Form(""),
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
-    user: User | None = Depends(get_optional_current_user),
+    user: User = Depends(get_current_user),
 ):
     """Analyze a document and convert it into persona training data."""
+    persona = await ensure_persona_access(persona_id, user, db)
     provider_settings = resolve_provider_settings(user)
     if not provider_settings.configured:
         raise HTTPException(400, "Provider API key not configured")
 
-    persona = await db.get(PersonaCore, persona_id)
     if not persona:
         raise HTTPException(404, "Persona not found")
 
     filename = file.filename or "document"
     try:
-        parsed_document = parse_document(filename, await file.read())
+        parsed_document = parse_document(
+            filename,
+            await file.read(),
+            max_bytes=get_settings().max_document_bytes,
+        )
+    except DocumentTooLargeError as exc:
+        raise HTTPException(413, str(exc)) from exc
     except UnsupportedDocumentTypeError as exc:
-        supported = ", ".join(sorted(ext.lstrip(".") for ext in SUPPORTED_DOCUMENT_TYPES))
+        supported = ", ".join(
+            sorted(ext.lstrip(".") for ext in SUPPORTED_DOCUMENT_TYPES)
+        )
         raise HTTPException(400, f"{exc}. Supported types: {supported}") from exc
     except Exception as exc:
         logger.error("document_parse_failed", filename=filename, error=str(exc))
@@ -471,26 +520,60 @@ async def analyze_document(
         raise HTTPException(400, "Document did not contain any analyzable text")
 
     existing_memories = (
-        await db.execute(select(Memory).where(Memory.persona_id == persona_id))
-    ).scalars().all()
+        (await db.execute(select(Memory).where(Memory.persona_id == persona_id)))
+        .scalars()
+        .all()
+    )
     existing_policies = (
-        await db.execute(select(PolicyRule).where(PolicyRule.persona_id == persona_id))
-    ).scalars().all()
+        (
+            await db.execute(
+                select(PolicyRule).where(PolicyRule.persona_id == persona_id)
+            )
+        )
+        .scalars()
+        .all()
+    )
     existing_samples = (
-        await db.execute(select(WritingSample).where(WritingSample.persona_id == persona_id))
-    ).scalars().all()
+        (
+            await db.execute(
+                select(WritingSample).where(WritingSample.persona_id == persona_id)
+            )
+        )
+        .scalars()
+        .all()
+    )
 
-    memory_titles_preview = "\n".join(
-        memory.title for memory in list(existing_memories)[:50]
-    ) or "None"
-    policy_names_preview = "\n".join(
-        policy.name for policy in list(existing_policies)[:50]
-    ) or "None"
-    sample_contexts_preview = "\n".join(
-        sample.context_type for sample in list(existing_samples)[:50]
-    ) or "None"
+    memory_titles_preview = (
+        "\n".join(memory.title for memory in list(existing_memories)[:50]) or "None"
+    )
+    policy_names_preview = (
+        "\n".join(policy.name for policy in list(existing_policies)[:50]) or "None"
+    )
+    sample_contexts_preview = (
+        "\n".join(sample.context_type for sample in list(existing_samples)[:50])
+        or "None"
+    )
 
     chunk_payloads: list[dict] = []
+
+    async def _analyze_chunk(chunk, chunk_prompt: str) -> dict:
+        result = await Runner.run(
+            document_profile_extractor_agent,
+            input=chunk_prompt,
+            run_config=provider_settings.to_run_config(),
+        )
+        try:
+            return _load_json_output(result.final_output)
+        except (json.JSONDecodeError, TypeError) as exc:
+            logger.error(
+                "document_analysis_parse_failed",
+                filename=filename,
+                chunk_index=chunk.index,
+                output=result.final_output,
+            )
+            raise HTTPException(500, "Failed to analyze document") from exc
+
+    prompts = []
     for chunk in parsed_document.analysis_chunks:
         prompt = f"""TARGET PERSONA
 Name: {persona.name}
@@ -515,22 +598,17 @@ EXISTING WRITING SAMPLE CONTEXTS
 DOCUMENT TEXT
 {chunk.text}
 """
-        result = await Runner.run(
-            document_profile_extractor_agent,
-            input=prompt,
-            run_config=provider_settings.to_run_config(),
-        )
+        prompts.append((chunk, prompt))
 
-        try:
-            chunk_payloads.append(_load_json_output(result.final_output))
-        except (json.JSONDecodeError, TypeError) as exc:
-            logger.error(
-                "document_analysis_parse_failed",
-                filename=filename,
-                chunk_index=chunk.index,
-                output=result.final_output,
-            )
-            raise HTTPException(500, "Failed to analyze document") from exc
+    # Process chunks concurrently (max 4 at a time to respect rate limits)
+    sem = asyncio.Semaphore(4)
+
+    async def _bounded(chunk, prompt):
+        async with sem:
+            return await _analyze_chunk(chunk, prompt)
+
+    chunk_payloads = await asyncio.gather(*[_bounded(c, p) for c, p in prompts])
+    chunk_payloads = list(chunk_payloads)
 
     merged_data = merge_document_payloads(chunk_payloads)
     persona_update = _parse_persona_update(merged_data)
@@ -595,13 +673,17 @@ DOCUMENT TEXT
 
 
 @router.post("/quick-import")
-async def quick_import(payload: QuickImportPayload, db: AsyncSession = Depends(get_db)):
+async def quick_import(
+    payload: QuickImportPayload,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
     """Import data from a ChatGPT-generated JSON into an existing persona.
 
     Adds memories, writing samples, and policies to the persona.
     Optionally updates persona core fields (identity, values, tone, etc.).
     """
-    persona = await db.get(PersonaCore, payload.persona_id)
+    persona = await ensure_persona_access(payload.persona_id, user, db)
     if not persona:
         return ORJSONResponse({"error": "Persona not found"}, status_code=404)
     counts = await _apply_import_data(

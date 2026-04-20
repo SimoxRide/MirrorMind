@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 
 class PersonaCoreCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
-    identity_summary: str = ""
+    identity_summary: str = Field("", max_length=5000)
     values: dict | None = None
     tone: dict | None = None
     humor_style: dict | None = None
@@ -21,13 +21,13 @@ class PersonaCoreCreate(BaseModel):
     never_say: list[str] | None = None
     avoid_topics: list[str] | None = None
     ask_before_acting: list[str] | None = None
-    confidence_threshold: float = 0.7
-    autonomy_level: str = "medium"
+    confidence_threshold: float = Field(0.7, ge=0.0, le=1.0)
+    autonomy_level: str = Field("medium", pattern=r"^(low|medium|high)$")
 
 
 class PersonaCoreUpdate(BaseModel):
-    name: str | None = None
-    identity_summary: str | None = None
+    name: str | None = Field(None, min_length=1, max_length=255)
+    identity_summary: str | None = Field(None, max_length=5000)
     values: dict | None = None
     tone: dict | None = None
     humor_style: dict | None = None
@@ -37,8 +37,8 @@ class PersonaCoreUpdate(BaseModel):
     never_say: list[str] | None = None
     avoid_topics: list[str] | None = None
     ask_before_acting: list[str] | None = None
-    confidence_threshold: float | None = None
-    autonomy_level: str | None = None
+    confidence_threshold: float | None = Field(None, ge=0.0, le=1.0)
+    autonomy_level: str | None = Field(None, pattern=r"^(low|medium|high)$")
 
 
 class PersonaCoreRead(BaseModel):

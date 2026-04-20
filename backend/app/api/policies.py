@@ -6,15 +6,23 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.access import ensure_persona_access
+from app.core.deps import get_current_user
 from app.db.session import get_db
 from app.models.policy import PolicyRule
+from app.models.user import User
 from app.schemas.core import PolicyRuleCreate, PolicyRuleRead, PolicyRuleUpdate
 
 router = APIRouter(prefix="/policies", tags=["Policies"])
 
 
 @router.post("/", response_model=PolicyRuleRead, status_code=201)
-async def create_policy(data: PolicyRuleCreate, db: AsyncSession = Depends(get_db)):
+async def create_policy(
+    data: PolicyRuleCreate,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    await ensure_persona_access(data.persona_id, user, db)
     rule = PolicyRule(**data.model_dump(exclude_none=True))
     db.add(rule)
     await db.flush()
@@ -30,7 +38,9 @@ async def list_policies(
     limit: int = Query(100, le=500),
     offset: int = 0,
     db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
 ):
+    await ensure_persona_access(persona_id, user, db)
     count_stmt = select(func.count(PolicyRule.id)).where(
         PolicyRule.persona_id == persona_id
     )
@@ -54,11 +64,15 @@ async def list_policies(
 
 @router.patch("/{rule_id}", response_model=PolicyRuleRead)
 async def update_policy(
-    rule_id: UUID, data: PolicyRuleUpdate, db: AsyncSession = Depends(get_db)
+    rule_id: UUID,
+    data: PolicyRuleUpdate,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
 ):
     rule = await db.get(PolicyRule, rule_id)
     if not rule:
         raise HTTPException(status_code=404, detail="Policy not found")
+    await ensure_persona_access(rule.persona_id, user, db)
     for field, value in data.model_dump(exclude_unset=True).items():
         setattr(rule, field, value)
     rule.version += 1
@@ -68,9 +82,14 @@ async def update_policy(
 
 
 @router.delete("/{rule_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_policy(rule_id: UUID, db: AsyncSession = Depends(get_db)):
+async def delete_policy(
+    rule_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
     rule = await db.get(PolicyRule, rule_id)
     if not rule:
         raise HTTPException(status_code=404, detail="Policy not found")
+    await ensure_persona_access(rule.persona_id, user, db)
     await db.delete(rule)
     await db.flush()

@@ -7,10 +7,13 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.access import ensure_persona_access
+from app.core.deps import get_current_user
 from app.core.logging import get_logger
 from app.db.session import get_db
 from app.graphrag.ingestion import GraphIngestionPipeline
 from app.graphrag.retrieval import GraphRetriever
+from app.models.user import User
 from app.schemas.core import (
     GraphEdge,
     GraphEdgeCreate,
@@ -27,8 +30,13 @@ router = APIRouter(prefix="/graph", tags=["GraphRAG"])
 
 
 @router.post("/query", response_model=GraphSubgraph)
-async def query_graph(req: GraphQueryRequest):
+async def query_graph(
+    req: GraphQueryRequest,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
     """Fetch a subgraph for visualization or inspection."""
+    await ensure_persona_access(req.persona_id, user, db)
     retriever = GraphRetriever()
     result = await retriever.get_subgraph(
         persona_id=req.persona_id,
@@ -65,14 +73,18 @@ async def ingest_memory_to_graph(
     persona_id: UUID = Query(...),
     memory_id: UUID = Query(...),
     db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
 ):
     """Ingest a single memory record into the knowledge graph."""
     from app.services.memory_service import MemoryService
 
+    await ensure_persona_access(persona_id, user, db)
     svc = MemoryService(db)
     memory = await svc.get(memory_id)
     if not memory:
         return {"status": "error", "detail": "Memory not found"}
+    if memory.persona_id != persona_id:
+        raise HTTPException(status_code=403, detail="Memory does not belong to persona")
 
     pipeline = GraphIngestionPipeline()
     await pipeline.ingest_from_memory(
@@ -92,11 +104,14 @@ async def ingest_memory_to_graph(
 
 @router.post("/rebuild")
 async def rebuild_graph(
-    persona_id: UUID = Query(...), db: AsyncSession = Depends(get_db)
+    persona_id: UUID = Query(...),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
 ):
     """Rebuild the full graph for a persona from all memories, streaming progress via SSE."""
     from app.services.memory_service import MemoryService
 
+    await ensure_persona_access(persona_id, user, db)
     svc = MemoryService(db)
     memories = await svc.list_by_persona(persona_id, limit=1000)
     total = len(memories)
@@ -107,31 +122,48 @@ async def rebuild_graph(
     async def event_stream():
         pipeline = GraphIngestionPipeline()
         count = 0
-        for mem in memories:
-            await pipeline.ingest_from_memory(
-                persona_id=persona_id,
-                memory={
-                    "id": str(mem.id),
-                    "title": mem.title,
-                    "content": mem.content,
-                    "memory_type": mem.memory_type,
-                    "confidence": mem.confidence,
-                    "tags": mem.tags or [],
-                    "linked_entities": mem.linked_entities or [],
-                },
+        try:
+            for mem in memories:
+                await pipeline.ingest_from_memory(
+                    persona_id=persona_id,
+                    memory={
+                        "id": str(mem.id),
+                        "title": mem.title,
+                        "content": mem.content,
+                        "memory_type": mem.memory_type,
+                        "confidence": mem.confidence,
+                        "tags": mem.tags or [],
+                        "linked_entities": mem.linked_entities or [],
+                    },
+                )
+                count += 1
+                progress = {
+                    "current": count,
+                    "total": total,
+                    "percent": round(count / total * 100),
+                    "current_memory": mem.title,
+                    "status": "processing",
+                }
+                yield f"data: {json.dumps(progress)}\n\n"
+                logger.info(
+                    "graph_rebuild_progress",
+                    current=count,
+                    total=total,
+                    memory=mem.title,
+                )
+        except Exception as exc:
+            logger.error(
+                "graph_rebuild_error", current=count, total=total, error=str(exc)
             )
-            count += 1
-            progress = {
+            error_event = {
                 "current": count,
                 "total": total,
-                "percent": round(count / total * 100),
-                "current_memory": mem.title,
-                "status": "processing",
+                "percent": round(count / total * 100) if total else 0,
+                "status": "error",
+                "error": str(exc),
             }
-            yield f"data: {json.dumps(progress)}\n\n"
-            logger.info(
-                "graph_rebuild_progress", current=count, total=total, memory=mem.title
-            )
+            yield f"data: {json.dumps(error_event)}\n\n"
+            return
 
         done = {
             "current": total,
@@ -154,7 +186,11 @@ async def rebuild_graph(
 
 
 @router.patch("/nodes/{node_id}", response_model=GraphNode)
-async def update_node(node_id: str, body: GraphNodeUpdate):
+async def update_node(
+    node_id: str,
+    body: GraphNodeUpdate,
+    _user: User = Depends(get_current_user),
+):
     """Update a node's label, type, or properties."""
     retriever = GraphRetriever()
     result = await retriever.update_node(
@@ -175,7 +211,10 @@ async def update_node(node_id: str, body: GraphNodeUpdate):
 
 
 @router.delete("/nodes/{node_id}")
-async def delete_node(node_id: str):
+async def delete_node(
+    node_id: str,
+    _user: User = Depends(get_current_user),
+):
     """Delete a node and all its relationships."""
     retriever = GraphRetriever()
     ok = await retriever.delete_node(node_id)
@@ -188,8 +227,13 @@ async def delete_node(node_id: str):
 
 
 @router.post("/edges", response_model=GraphEdge)
-async def create_edge(body: GraphEdgeCreate):
+async def create_edge(
+    body: GraphEdgeCreate,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
     """Create a new relationship between two nodes."""
+    await ensure_persona_access(body.persona_id, user, db)
     retriever = GraphRetriever()
     result = await retriever.create_edge(
         body.source, body.target, body.type, body.properties or None
@@ -200,7 +244,11 @@ async def create_edge(body: GraphEdgeCreate):
 
 
 @router.patch("/edges/{edge_id:path}", response_model=GraphEdge)
-async def update_edge(edge_id: str, body: GraphEdgeUpdate):
+async def update_edge(
+    edge_id: str,
+    body: GraphEdgeUpdate,
+    _user: User = Depends(get_current_user),
+):
     """Update an edge's type or properties."""
     retriever = GraphRetriever()
     result = await retriever.update_edge(
@@ -212,7 +260,10 @@ async def update_edge(edge_id: str, body: GraphEdgeUpdate):
 
 
 @router.delete("/edges/{edge_id:path}")
-async def delete_edge(edge_id: str):
+async def delete_edge(
+    edge_id: str,
+    _user: User = Depends(get_current_user),
+):
     """Delete a relationship."""
     retriever = GraphRetriever()
     ok = await retriever.delete_edge(edge_id)

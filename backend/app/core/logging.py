@@ -40,6 +40,12 @@ def setup_logging() -> None:
         cache_logger_on_first_use=True,
     )
 
+    # Silence noisy third-party loggers
+    logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
+    logging.getLogger("sqlalchemy.pool").setLevel(logging.WARNING)
+    logging.getLogger("passlib").setLevel(logging.WARNING)
+    logging.getLogger("asyncpg").setLevel(logging.WARNING)
+
     # Let uvicorn access logs through if debug
     if settings.debug:
         logging.getLogger("uvicorn.access").setLevel(logging.INFO)

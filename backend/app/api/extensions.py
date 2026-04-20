@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.access import ensure_persona_access
 from app.core.deps import get_current_user
 from app.db.session import get_db
 from app.models.extension import Extension
@@ -163,19 +164,26 @@ async def list_platforms(_user: User = Depends(get_current_user)):
 @router.get("/", response_model=list[ExtensionRead])
 async def list_extensions(
     persona_id: UUID,
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
     svc: ExtensionService = Depends(_svc),
-    _user: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
+    await ensure_persona_access(persona_id, user, db)
     exts = await svc.list_by_persona(persona_id)
-    return [_to_read(e) for e in exts]
+    total = len(exts)
+    return [_to_read(e) for e in exts[offset : offset + limit]]
 
 
 @router.post("/", response_model=ExtensionRead, status_code=201)
 async def create_extension(
     data: ExtensionCreate,
     svc: ExtensionService = Depends(_svc),
-    _user: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
+    await ensure_persona_access(data.persona_id, user, db)
     ext = await svc.create(data.model_dump(exclude_none=True))
     return _to_read(ext)
 
@@ -185,11 +193,13 @@ async def update_extension(
     ext_id: UUID,
     data: ExtensionUpdate,
     svc: ExtensionService = Depends(_svc),
-    _user: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     ext = await svc.get(ext_id)
     if not ext:
         raise HTTPException(status_code=404, detail="Extension not found.")
+    await ensure_persona_access(ext.persona_id, user, db)
     ext = await svc.update(ext, data.model_dump(exclude_unset=True))
 
     # Handle bot lifecycle
@@ -202,11 +212,13 @@ async def update_extension(
 async def delete_extension(
     ext_id: UUID,
     svc: ExtensionService = Depends(_svc),
-    _user: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     ext = await svc.get(ext_id)
     if not ext:
         raise HTTPException(status_code=404, detail="Extension not found.")
+    await ensure_persona_access(ext.persona_id, user, db)
     await _stop_platform_bot(ext)
     await svc.delete(ext)
 
@@ -218,11 +230,13 @@ async def delete_extension(
 async def toggle_extension(
     ext_id: UUID,
     svc: ExtensionService = Depends(_svc),
-    _user: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     ext = await svc.get(ext_id)
     if not ext:
         raise HTTPException(status_code=404, detail="Extension not found.")
+    await ensure_persona_access(ext.persona_id, user, db)
 
     new_active = not ext.is_active
     ext = await svc.update(ext, {"is_active": new_active})

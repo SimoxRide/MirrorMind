@@ -2,12 +2,13 @@
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Header, status
+from fastapi import APIRouter, Depends, HTTPException, Header, Request, Response, status
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import require_admin
+from app.core.rate_limit import limiter, public_chat_limit
 from app.db.session import get_db
 from app.models.persona import PersonaCore
 from app.models.production import (
@@ -168,9 +169,12 @@ async def regenerate_api_key(
 
 
 @router.post("/production/chat/{endpoint_id}", response_model=CloneResponse)
+@limiter.limit(public_chat_limit())
 async def public_clone_chat(
+    request: Request,
     endpoint_id: str,
     data: PublicChatRequest,
+    response: Response,
     db: AsyncSession = Depends(get_db),
     x_api_key: str | None = Header(None),
 ):

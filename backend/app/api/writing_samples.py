@@ -9,7 +9,8 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.definitions import style_analysis_agent
-from app.core.deps import get_optional_current_user
+from app.core.access import ensure_persona_access
+from app.core.deps import get_current_user, get_optional_current_user
 from app.core.logging import get_logger
 from app.db.session import get_db
 from app.models.persona import PersonaCore
@@ -33,8 +34,12 @@ def _svc(db: AsyncSession = Depends(get_db)) -> WritingSampleService:
 
 @router.post("/", response_model=WritingSampleRead, status_code=status.HTTP_201_CREATED)
 async def create_sample(
-    data: WritingSampleCreate, svc: WritingSampleService = Depends(_svc)
+    data: WritingSampleCreate,
+    svc: WritingSampleService = Depends(_svc),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
+    await ensure_persona_access(data.persona_id, user, db)
     return await svc.create(data)
 
 
@@ -46,7 +51,10 @@ async def list_samples(
     limit: int = Query(100, le=500),
     offset: int = 0,
     svc: WritingSampleService = Depends(_svc),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
+    await ensure_persona_access(persona_id, user, db)
     total = await svc.count_by_persona(persona_id, context_type=context_type)
     response.headers["X-Total-Count"] = str(total)
     return await svc.list_by_persona(
@@ -55,15 +63,30 @@ async def list_samples(
 
 
 @router.get("/{sample_id}", response_model=WritingSampleRead)
-async def get_sample(sample_id: UUID, svc: WritingSampleService = Depends(_svc)):
+async def get_sample(
+    sample_id: UUID,
+    svc: WritingSampleService = Depends(_svc),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     sample = await svc.get(sample_id)
     if not sample:
         raise HTTPException(status_code=404, detail="Writing sample not found")
+    await ensure_persona_access(sample.persona_id, user, db)
     return sample
 
 
 @router.delete("/{sample_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_sample(sample_id: UUID, svc: WritingSampleService = Depends(_svc)):
+async def delete_sample(
+    sample_id: UUID,
+    svc: WritingSampleService = Depends(_svc),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    sample = await svc.get(sample_id)
+    if not sample:
+        raise HTTPException(status_code=404, detail="Writing sample not found")
+    await ensure_persona_access(sample.persona_id, user, db)
     if not await svc.delete(sample_id):
         raise HTTPException(status_code=404, detail="Writing sample not found")
 
@@ -73,11 +96,17 @@ async def update_sample(
     sample_id: UUID,
     data: WritingSampleUpdate,
     svc: WritingSampleService = Depends(_svc),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
-    sample = await svc.update(sample_id, data.model_dump(exclude_unset=True))
+    sample = await svc.get(sample_id)
     if not sample:
         raise HTTPException(status_code=404, detail="Writing sample not found")
-    return sample
+    await ensure_persona_access(sample.persona_id, user, db)
+    updated = await svc.update(sample_id, data.model_dump(exclude_unset=True))
+    if not updated:
+        raise HTTPException(status_code=404, detail="Writing sample not found")
+    return updated
 
 
 # ── Style Analysis ───────────────────────────────────────
@@ -92,21 +121,19 @@ class StyleProfileResponse(BaseModel):
 async def analyze_writing_style(
     persona_id: UUID = Query(...),
     db: AsyncSession = Depends(get_db),
-    user: User | None = Depends(get_optional_current_user),
+    user: User = Depends(get_current_user),
 ):
     """Run the StyleAnalyzer agent on all writing samples and save
     an aggregated style profile (grammar, punctuation, emoji, etc.)
     to the persona."""
+    persona = await ensure_persona_access(persona_id, user, db)
+
     provider_settings = resolve_provider_settings(user)
     if not provider_settings.configured:
         raise HTTPException(
             status_code=400,
             detail="An LLM provider API key is required for style analysis.",
         )
-
-    persona = await db.get(PersonaCore, persona_id)
-    if not persona:
-        raise HTTPException(status_code=404, detail="Persona not found.")
 
     svc = WritingSampleService(db)
     samples = await svc.list_by_persona(persona_id, limit=50)
@@ -137,11 +164,15 @@ async def analyze_writing_style(
         "=== WRITING SAMPLES ===\n\n" + "\n\n---\n\n".join(sample_texts)
     )
 
-    result = await Runner.run(
-        style_analysis_agent,
-        input=prompt,
-        run_config=provider_settings.to_run_config(),
-    )
+    try:
+        result = await Runner.run(
+            style_analysis_agent,
+            input=prompt,
+            run_config=provider_settings.to_run_config(),
+        )
+    except Exception as exc:
+        logger.error("style_analysis_agent_failed", error=str(exc))
+        raise HTTPException(502, "LLM agent failed during style analysis") from exc
 
     try:
         style_profile = json.loads(result.final_output)

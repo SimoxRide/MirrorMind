@@ -33,6 +33,7 @@ async def _poll_loop(extension_id: UUID, token: str, persona_id: UUID) -> None:
     """Long-polling loop that forwards Telegram messages to the clone engine."""
     base_url = TELEGRAM_API.format(token=token)
     offset = 0
+    backoff = 5  # exponential backoff starting value
     # Per-chat conversation history: chat_id -> deque of {role, content}
     chat_histories: dict[int, deque] = defaultdict(
         lambda: deque(maxlen=_MAX_HISTORY * 2)
@@ -48,8 +49,11 @@ async def _poll_loop(extension_id: UUID, token: str, persona_id: UUID) -> None:
                 data = resp.json()
                 if not data.get("ok"):
                     logger.warning("telegram_poll_error", detail=data)
-                    await asyncio.sleep(5)
+                    await asyncio.sleep(backoff)
+                    backoff = min(backoff * 2, 60)
                     continue
+
+                backoff = 5  # reset on success
 
                 for update in data.get("result", []):
                     offset = update["update_id"] + 1
@@ -118,7 +122,8 @@ async def _poll_loop(extension_id: UUID, token: str, persona_id: UUID) -> None:
                 return
             except Exception as exc:
                 logger.error("telegram_poll_exception", error=str(exc))
-                await asyncio.sleep(5)
+                await asyncio.sleep(backoff)
+                backoff = min(backoff * 2, 60)
 
 
 async def start_bot(extension_id: UUID, token: str, persona_id: UUID) -> None:

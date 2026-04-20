@@ -1,24 +1,30 @@
 services:
     postgres:
         image: pgvector/pgvector:pg16
+        restart: unless-stopped
         environment:
-            POSTGRES_USER: vsl
-            POSTGRES_PASSWORD: vsl_secret
-            POSTGRES_DB: mirrormind
+            POSTGRES_USER: ${POSTGRES_USER:-vsl}
+            POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+            POSTGRES_DB: ${POSTGRES_DB:-mirrormind}
         ports:
             - "5432:5432"
         volumes:
             - pgdata:/var/lib/postgresql/data
         healthcheck:
-            test: ["CMD-SHELL", "pg_isready -U vsl -d mirrormind"]
+            test:
+                [
+                    "CMD-SHELL",
+                    "pg_isready -U ${POSTGRES_USER:-vsl} -d ${POSTGRES_DB:-mirrormind}",
+                ]
             interval: 5s
             timeout: 5s
             retries: 5
 
     neo4j:
         image: neo4j:5-community
+        restart: unless-stopped
         environment:
-            NEO4J_AUTH: neo4j/neo4j_secret
+            NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:?NEO4J_PASSWORD is required}
             NEO4J_PLUGINS: '["apoc"]'
         ports:
             - "7474:7474"
@@ -35,6 +41,7 @@ services:
         build:
             context: ./backend
             dockerfile: Dockerfile
+        restart: unless-stopped
         env_file: .env
         ports:
             - "8000:8000"
@@ -51,6 +58,7 @@ services:
         build:
             context: ./frontend
             dockerfile: Dockerfile
+        restart: unless-stopped
         ports:
             - "5173:5173"
         depends_on:

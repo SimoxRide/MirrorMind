@@ -25,6 +25,9 @@ dependencies = [
     "orjson>=3.10.0",
     "pypdf>=5.4.0",
     "websockets>=13.0",
+    "slowapi>=0.1.9",
+    "cryptography>=42.0.0",
+    "cachetools>=5.5.0",
 ]
 
 [project.optional-dependencies]
@@ -34,6 +37,7 @@ dev = [
     "httpx>=0.28.0",
     "ruff>=0.8.0",
     "mypy>=1.13.0",
+    "aiosqlite>=0.20.0",
 ]
 
 [build-system]

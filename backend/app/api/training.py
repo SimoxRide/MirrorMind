@@ -10,7 +10,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.definitions import training_analyst_agent, training_question_agent
-from app.core.deps import get_optional_current_user
+from app.core.access import ensure_persona_access
+from app.core.deps import get_current_user
 from app.core.logging import get_logger
 from app.db.session import get_db
 from app.models.persona import Memory, PersonaCore, WritingSample
@@ -94,15 +95,14 @@ class AnalysisResult(BaseModel):
 async def generate_questions(
     req: GenerateQuestionsRequest,
     db: AsyncSession = Depends(get_db),
-    user: User | None = Depends(get_optional_current_user),
+    user: User = Depends(get_current_user),
 ):
     """Generate scenario-based training questions tailored to persona gaps."""
+    persona = await ensure_persona_access(req.persona_id, user, db)
     provider_settings = resolve_provider_settings(user)
     if not provider_settings.configured:
         raise HTTPException(400, "Provider API key not configured")
 
-    # Load persona context
-    persona = await db.get(PersonaCore, req.persona_id)
     if not persona:
         raise HTTPException(404, "Persona not found")
 
@@ -140,11 +140,15 @@ Writing samples per context: {json.dumps(context_counts) if context_counts else 
 Generate exactly {req.count} training questions. Focus on areas where the profile has GAPS.
 Do NOT repeat or rephrase any of the previously asked questions."""
 
-    result = await Runner.run(
-        training_question_agent,
-        input=prompt,
-        run_config=provider_settings.to_run_config(),
-    )
+    try:
+        result = await Runner.run(
+            training_question_agent,
+            input=prompt,
+            run_config=provider_settings.to_run_config(),
+        )
+    except Exception as exc:
+        logger.error("training_question_agent_failed", error=str(exc))
+        raise HTTPException(502, "LLM agent failed to generate questions") from exc
 
     try:
         questions = json.loads(result.final_output)
@@ -158,14 +162,14 @@ Do NOT repeat or rephrase any of the previously asked questions."""
 async def analyze_answer(
     req: AnalyzeAnswerRequest,
     db: AsyncSession = Depends(get_db),
-    user: User | None = Depends(get_optional_current_user),
+    user: User = Depends(get_current_user),
 ):
     """Analyze a user's answer to extract clone knowledge and optionally auto-save."""
+    persona = await ensure_persona_access(req.persona_id, user, db)
     provider_settings = resolve_provider_settings(user)
     if not provider_settings.configured:
         raise HTTPException(400, "Provider API key not configured")
 
-    persona = await db.get(PersonaCore, req.persona_id)
     if not persona:
         raise HTTPException(404, "Persona not found")
 
@@ -190,11 +194,15 @@ EXISTING MEMORY TITLES (avoid duplicates):
 
 Analyze the answer thoroughly and extract all useful data for the clone."""
 
-    result = await Runner.run(
-        training_analyst_agent,
-        input=prompt,
-        run_config=provider_settings.to_run_config(),
-    )
+    try:
+        result = await Runner.run(
+            training_analyst_agent,
+            input=prompt,
+            run_config=provider_settings.to_run_config(),
+        )
+    except Exception as exc:
+        logger.error("training_analyst_agent_failed", error=str(exc))
+        raise HTTPException(502, "LLM agent failed to analyze answer") from exc
 
     try:
         data = json.loads(result.final_output)

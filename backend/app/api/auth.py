@@ -1,11 +1,12 @@
 """Authentication, user info, and per-user provider settings routes."""
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, EmailStr
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import get_current_user
+from app.core.rate_limit import auth_limit, limiter
 from app.core.security import create_access_token, hash_password, verify_password
 from app.db.session import get_db
 from app.models.user import User
@@ -71,7 +72,13 @@ async def check_setup_status(db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/setup", response_model=TokenResponse)
-async def initial_setup(data: SetupRequest, db: AsyncSession = Depends(get_db)):
+@limiter.limit(auth_limit())
+async def initial_setup(
+    request: Request,
+    data: SetupRequest,
+    response: Response,
+    db: AsyncSession = Depends(get_db),
+):
     """First-run admin account creation. Only works when no users exist."""
     result = await db.execute(select(func.count(User.id)))
     count = result.scalar() or 0
@@ -97,7 +104,13 @@ async def initial_setup(data: SetupRequest, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/register", response_model=TokenResponse)
-async def register(data: SetupRequest, db: AsyncSession = Depends(get_db)):
+@limiter.limit(auth_limit())
+async def register(
+    request: Request,
+    data: SetupRequest,
+    response: Response,
+    db: AsyncSession = Depends(get_db),
+):
     """Register a new (non-admin) user."""
     existing = await db.execute(select(User).where(User.email == data.email))
     if existing.scalar_one_or_none():
@@ -122,7 +135,13 @@ async def register(data: SetupRequest, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/login", response_model=TokenResponse)
-async def login(data: LoginRequest, db: AsyncSession = Depends(get_db)):
+@limiter.limit(auth_limit())
+async def login(
+    request: Request,
+    data: LoginRequest,
+    response: Response,
+    db: AsyncSession = Depends(get_db),
+):
     """Authenticate with email + password."""
     result = await db.execute(select(User).where(User.email == data.email))
     user = result.scalar_one_or_none()

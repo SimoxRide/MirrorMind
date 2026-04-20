@@ -57,6 +57,7 @@ async def _gateway_loop(extension_id: UUID, token: str, persona_id: UUID) -> Non
     sequence = None
     session_id = None
     resume_gateway_url = None
+    backoff = 5  # exponential backoff starting value
 
     async with httpx.AsyncClient(timeout=30) as http:
         # Get bot user id
@@ -138,7 +139,8 @@ async def _gateway_loop(extension_id: UUID, token: str, persona_id: UUID) -> Non
                             if op == 9:
                                 session_id = None
                                 sequence = None
-                                await asyncio.sleep(5)
+                                await asyncio.sleep(backoff)
+                                backoff = min(backoff * 2, 60)
                                 break
 
                             # READY — store session info
@@ -148,6 +150,7 @@ async def _gateway_loop(extension_id: UUID, token: str, persona_id: UUID) -> Non
                                 logger.info(
                                     "discord_bot_ready", extension_id=str(extension_id)
                                 )
+                                backoff = 5  # reset on successful connect
 
                             # MESSAGE_CREATE
                             if t == "MESSAGE_CREATE" and d:
@@ -238,7 +241,8 @@ async def _gateway_loop(extension_id: UUID, token: str, persona_id: UUID) -> Non
                 return
             except Exception as exc:
                 logger.error("discord_gateway_error", error=str(exc))
-                await asyncio.sleep(5)
+                await asyncio.sleep(backoff)
+                backoff = min(backoff * 2, 60)
 
 
 async def start_bot(extension_id: UUID, token: str, persona_id: UUID) -> None:

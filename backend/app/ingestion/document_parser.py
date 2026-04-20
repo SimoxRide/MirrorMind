@@ -21,6 +21,10 @@ class UnsupportedDocumentTypeError(ValueError):
     """Raised when a document type is not supported."""
 
 
+class DocumentTooLargeError(ValueError):
+    """Raised when a document exceeds the configured size limit."""
+
+
 @dataclass(slots=True)
 class DocumentChunk:
     index: int
@@ -47,11 +51,18 @@ def parse_document(
     *,
     model_text_limit: int = DEFAULT_MODEL_TEXT_LIMIT,
     max_analysis_chunks: int = DEFAULT_MAX_ANALYSIS_CHUNKS,
+    max_bytes: int | None = None,
 ) -> ParsedDocument:
     extension = Path(filename).suffix.lower()
     if extension not in SUPPORTED_DOCUMENT_TYPES:
         raise UnsupportedDocumentTypeError(
             f"Unsupported document type: {extension or 'unknown'}"
+        )
+
+    if max_bytes is not None and len(content) > max_bytes:
+        raise DocumentTooLargeError(
+            f"Document exceeds the maximum allowed size "
+            f"({len(content)} > {max_bytes} bytes)."
         )
 
     text = _extract_text(extension, content)

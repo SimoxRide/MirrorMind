@@ -1,6 +1,6 @@
 """FastAPI dependencies for authentication."""
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,6 +12,7 @@ security_scheme = HTTPBearer(auto_error=False)
 
 
 async def get_current_user(
+    request: Request,
     credentials: HTTPAuthorizationCredentials | None = Depends(security_scheme),
     db: AsyncSession = Depends(get_db),
 ) -> User:
@@ -35,10 +36,12 @@ async def get_current_user(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User not found or disabled",
         )
+    request.state.user = user
     return user
 
 
 async def get_optional_current_user(
+    request: Request,
     credentials: HTTPAuthorizationCredentials | None = Depends(security_scheme),
     db: AsyncSession = Depends(get_db),
 ) -> User | None:
@@ -59,6 +62,7 @@ async def get_optional_current_user(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User not found or disabled",
         )
+    request.state.user = user
     return user
 
 
