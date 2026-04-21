@@ -51,7 +51,7 @@ Whether you want an AI that answers customers in your voice, a digital twin for 
 
 - Added **Memory Images** — upload photos and associate them to the clone's memory
     - Three image kinds: **self** (self-portrait), **person** (people you know), **memory** (scenes/places)
-    - **AI vision analysis** via GPT-4o extracts appearance, mood, setting, tags, and captions automatically
+    - **AI vision analysis** via Vision-Model extracts appearance, mood, setting, tags, and captions automatically
     - **Self-portrait analysis** enriches the persona's identity summary with appearance and style details
     - Drag-and-drop upload UI with preview thumbnails and re-analysis on demand
     - Images viewable in both the **Persona Core** page (self photos) and the **Memories** page (all kinds)
