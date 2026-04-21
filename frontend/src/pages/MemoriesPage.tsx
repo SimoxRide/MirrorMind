@@ -3,6 +3,7 @@ import { useAppStore } from "../store/useAppStore";
 import { memoryApi } from "../api/client";
 import type { Memory, MemoryCreate } from "../types";
 import TipBox from "../components/TipBox";
+import MemoryImageGallery from "../components/MemoryImageGallery";
 import {
     Plus,
     X,
@@ -187,6 +188,16 @@ export default function MemoriesPage() {
                     make memories easier to find.
                 </p>
             </TipBox>
+
+            {/* Image memories */}
+            <div className="card p-5">
+                <MemoryImageGallery
+                    personaId={activePersonaId}
+                    title="Memory images & photos"
+                    allowKinds={["memory", "person", "self"]}
+                    defaultKind="memory"
+                />
+            </div>
 
             {/* Filter */}
             <div className="flex gap-2 flex-wrap">

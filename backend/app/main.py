@@ -161,6 +161,7 @@ def create_app() -> FastAPI:
         interviews,
         io,
         memories,
+        memory_images,
         personas,
         policies,
         production,
@@ -174,6 +175,7 @@ def create_app() -> FastAPI:
 
     app.include_router(personas.router, prefix="/api/v1")
     app.include_router(memories.router, prefix="/api/v1")
+    app.include_router(memory_images.router, prefix="/api/v1")
     app.include_router(writing_samples.router, prefix="/api/v1")
     app.include_router(interviews.router, prefix="/api/v1")
     app.include_router(policies.router, prefix="/api/v1")

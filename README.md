@@ -12,20 +12,20 @@ Whether you want an AI that answers customers in your voice, a digital twin for 
 
 ### What's inside
 
-| Module               | What it does                                                                                                                          |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| **Persona Core**     | Identity, values, tone, humor, communication style, emotional patterns, and mode-specific behavior (work, friend, romantic, conflict) |
-| **Memory System**    | Long-term, episodic, relational, and preference memories with confidence scores, LLM-powered extraction, and approval workflows       |
-| **Writing Style**    | Analyze real writing samples to capture vocabulary, sentence structure, and stylistic fingerprints                                    |
-| **Knowledge Graph**  | Neo4j-backed entity/relationship extraction (GraphRAG) for deep contextual retrieval                                                  |
-| **Rules & Policies** | Priority-ranked behavioral constraints the clone must always follow                                                                   |
-| **Testing Lab**      | Run conversations, compare clone output side-by-side with your own answers                                                            |
-| **Training Lab**     | Generate targeted questions, submit answers, and let the system analyze weak spots                                                    |
-| **Evaluation**       | Score responses on accuracy, tone fidelity, memory usage, and policy compliance                                                       |
-| **Production**       | Deploy trained clones as authenticated REST API endpoints, ready to integrate anywhere                                                |
-| **Extensions**       | Connect your clone to Telegram, Discord, WhatsApp — paste a token, toggle on, done                                                    |
-| **Document Import**  | Upload PDF, DOCX, TXT, MD, or JSON documents and extract persona updates, memories, writing samples, and policies with dedupe preview |
-| **Quick Import**     | Copy a prompt into ChatGPT, paste back the JSON, and auto-populate memories, writing samples, and policies in seconds                 |
+| Module               | What it does                                                                                                                                        |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Persona Core**     | Identity, values, tone, humor, communication style, emotional patterns, and mode-specific behavior (work, friend, romantic, conflict)               |
+| **Memory System**    | Long-term, episodic, relational, and preference memories with confidence scores, LLM-powered extraction, approval workflows, and **image memories** |
+| **Writing Style**    | Analyze real writing samples to capture vocabulary, sentence structure, and stylistic fingerprints                                                  |
+| **Knowledge Graph**  | Neo4j-backed entity/relationship extraction (GraphRAG) for deep contextual retrieval                                                                |
+| **Rules & Policies** | Priority-ranked behavioral constraints the clone must always follow                                                                                 |
+| **Testing Lab**      | Run conversations, compare clone output side-by-side with your own answers                                                                          |
+| **Training Lab**     | Generate targeted questions, submit answers, and let the system analyze weak spots                                                                  |
+| **Evaluation**       | Score responses on accuracy, tone fidelity, memory usage, and policy compliance                                                                     |
+| **Production**       | Deploy trained clones as authenticated REST API endpoints, ready to integrate anywhere                                                              |
+| **Extensions**       | Connect your clone to Telegram, Discord, WhatsApp — paste a token, toggle on, done                                                                  |
+| **Document Import**  | Upload PDF, DOCX, TXT, MD, or JSON documents and extract persona updates, memories, writing samples, and policies with dedupe preview               |
+| **Quick Import**     | Copy a prompt into ChatGPT, paste back the JSON, and auto-populate memories, writing samples, and policies in seconds                               |
 
 ### Key features
 
@@ -34,6 +34,7 @@ Whether you want an AI that answers customers in your voice, a digital twin for 
 - **Platform Extensions** — Telegram, Discord, and WhatsApp integrations with per-chat conversation history
 - **OpenAI-compatible** — works with OpenAI, Ollama, LM Studio, Together, Groq, or any v1-compatible provider
 - **Full import/export** — persona bundles as portable JSON
+- **Image memories** — attach photos of yourself, people, or places; AI vision analysis enriches the clone's knowledge automatically
 - **Document ingestion** — chunked multi-format document analysis with duplicate-aware preview and save
 - **JWT auth** — login, registration, and first-run admin setup
 - **Dark theme UI** — modern glass-morphism design with React, TypeScript, and Tailwind CSS
@@ -46,30 +47,24 @@ Whether you want an AI that answers customers in your voice, a digital twin for 
 
 ---
 
-## Release 0.1.5
+## Release 0.1.6
 
-- Added **Extensions** page — connect your clone to **Telegram**, **Discord**, and **WhatsApp**
-- Telegram: paste a BotFather token, toggle on, your clone responds to Telegram messages
-- Discord: paste a bot token (MESSAGE CONTENT intent required), mention the bot or DM it
-- WhatsApp: provide Cloud API credentials & configure the webhook endpoint
-- All integrations maintain **per-chat conversation history** (20 turns) with `/reset` support
-- Added **Writing Style Profiling** — click "Analyze Style" to extract a grammar/punctuation/emoji fingerprint
-- Style profile captures: punctuation habits, capitalization, grammar correctness, emoji usage, sentence structure, language mixing, and more
-- Style profile is automatically injected into the ResponseGenerator prompt for higher fidelity
-- Bots auto-resume on server restart
+- Added **Memory Images** — upload photos and associate them to the clone's memory
+    - Three image kinds: **self** (self-portrait), **person** (people you know), **memory** (scenes/places)
+    - **AI vision analysis** via GPT-4o extracts appearance, mood, setting, tags, and captions automatically
+    - **Self-portrait analysis** enriches the persona's identity summary with appearance and style details
+    - Drag-and-drop upload UI with preview thumbnails and re-analysis on demand
+    - Images viewable in both the **Persona Core** page (self photos) and the **Memories** page (all kinds)
+    - REST API: upload, list, serve raw bytes, patch metadata, trigger re-analysis, delete
+- Added new `memory_images` table with Alembic migration
 
-## Release 0.1.4
+## Release 0.1.5 (previous)
 
-- Added **per-user LLM provider settings** (custom API key, base URL, model override)
-- Added **JWT authentication** with admin setup flow
-- Added **Production Clones** with API key authentication
-
-## Release 0.1.3
-
-- Added **Document Import** for `pdf`, `docx`, `txt`, `md`, and `json`
-- Added chunked document analysis so larger files do not rely on a single truncated prompt
-- Added duplicate-aware preview and save for memories, writing samples, and policies
-- Kept **Quick Import** for ChatGPT-generated JSON bootstrapping
+- **Extensions** — Telegram, Discord, and WhatsApp integrations with per-chat history and auto-resume
+- **Writing Style Profiling** — grammar, punctuation, capitalization, emoji fingerprints injected into clone responses
+- **Per-user LLM provider settings** — custom API key, base URL, model override
+- **JWT authentication** with admin setup flow; **Production Clones** with API key auth
+- **Document Import** for PDF, DOCX, TXT, MD, JSON with chunked analysis, dedupe preview, and **Quick Import** via ChatGPT JSON
 
 ---
 

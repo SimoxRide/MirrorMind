@@ -18,6 +18,8 @@ from app.models.testing import TestScenario, TestResult, Evaluation  # noqa: F40
 from app.models.agent_config import AgentConfig  # noqa: F401
 from app.models.user import User  # noqa: F401
 from app.models.production import ProductionClone  # noqa: F401
+from app.models.extension import Extension  # noqa: F401
+from app.models.memory_image import MemoryImage  # noqa: F401
 
 config = context.config
 if config.config_file_name is not None:

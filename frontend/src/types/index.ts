@@ -117,6 +117,32 @@ export interface WritingSample {
     created_at: string;
 }
 
+export type MemoryImageKind = "self" | "memory" | "person";
+
+export interface MemoryImage {
+    id: string;
+    persona_id: string;
+    memory_id: string | null;
+    kind: MemoryImageKind;
+    title: string;
+    caption: string | null;
+    content_type: string;
+    file_name: string | null;
+    size_bytes: number;
+    analysis_status: string;
+    analysis: Record<string, unknown> | null;
+    tags: string[] | null;
+    metadata_extra: Record<string, unknown> | null;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface MemoryImageAnalyzeResult {
+    image: MemoryImage;
+    persona_updated: boolean;
+    memory_created_id?: string | null;
+}
+
 export interface PolicyRule {
     id: string;
     persona_id: string;

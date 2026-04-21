@@ -27,6 +27,9 @@ import type {
     ProviderSettings,
     Extension,
     ExtensionPlatform,
+    MemoryImage,
+    MemoryImageAnalyzeResult,
+    MemoryImageKind,
 } from "../types";
 
 const api = axios.create({
@@ -150,6 +153,77 @@ export const memoryApi = {
     update: (id: string, data: Partial<Memory>) =>
         api.patch<Memory>(`/memories/${id}`, data).then((r) => r.data),
     delete: (id: string) => api.delete(`/memories/${id}`),
+};
+
+// ── Memory Images ───────────────────────────────────────
+
+export const memoryImageApi = {
+    list: (
+        personaId: string,
+        params?: {
+            kind?: MemoryImageKind;
+            memory_id?: string;
+            limit?: number;
+            offset?: number;
+        },
+    ): Promise<Paginated<MemoryImage>> =>
+        api
+            .get<MemoryImage[]>("/memory-images/", {
+                params: { persona_id: personaId, ...params },
+            })
+            .then((r) => ({
+                items: r.data,
+                total: parseInt(r.headers["x-total-count"] || "0", 10),
+            })),
+    get: (id: string) =>
+        api.get<MemoryImage>(`/memory-images/${id}`).then((r) => r.data),
+    upload: (
+        personaId: string,
+        file: File,
+        opts?: {
+            kind?: MemoryImageKind;
+            title?: string;
+            caption?: string;
+            memory_id?: string;
+            tags?: string;
+            analyze?: boolean;
+        },
+    ) => {
+        const form = new FormData();
+        form.append("persona_id", personaId);
+        form.append("kind", opts?.kind ?? "memory");
+        if (opts?.title) form.append("title", opts.title);
+        if (opts?.caption) form.append("caption", opts.caption);
+        if (opts?.memory_id) form.append("memory_id", opts.memory_id);
+        if (opts?.tags) form.append("tags", opts.tags);
+        form.append("analyze", String(opts?.analyze !== false));
+        form.append("file", file);
+        return api
+            .post<MemoryImageAnalyzeResult>("/memory-images/", form, {
+                headers: { "Content-Type": "multipart/form-data" },
+            })
+            .then((r) => r.data);
+    },
+    update: (id: string, data: Partial<MemoryImage>) =>
+        api
+            .patch<MemoryImage>(`/memory-images/${id}`, data)
+            .then((r) => r.data),
+    analyze: (id: string, applyToPersona = false) =>
+        api
+            .post<MemoryImageAnalyzeResult>(
+                `/memory-images/${id}/analyze`,
+                null,
+                { params: { apply_to_persona: applyToPersona } },
+            )
+            .then((r) => r.data),
+    delete: (id: string) => api.delete(`/memory-images/${id}`),
+    rawUrl: (id: string) => `/api/v1/memory-images/${id}/raw`,
+    fetchBlobUrl: async (id: string): Promise<string> => {
+        const res = await api.get<Blob>(`/memory-images/${id}/raw`, {
+            responseType: "blob",
+        });
+        return URL.createObjectURL(res.data);
+    },
 };
 
 // ── Writing Samples ─────────────────────────────────────
