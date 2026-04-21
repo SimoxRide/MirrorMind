@@ -3,6 +3,7 @@ import { useAppStore } from "../store/useAppStore";
 import { personaApi } from "../api/client";
 import type { PersonaCore, PersonaCoreCreate } from "../types";
 import TipBox from "../components/TipBox";
+import MemoryImageGallery from "../components/MemoryImageGallery";
 import { Save, Loader2 } from "lucide-react";
 
 export default function PersonaPage() {
@@ -196,6 +197,28 @@ export default function PersonaPage() {
                     )}
                 </button>
             </div>
+
+            {persona && (
+                <div className="card p-6 space-y-4">
+                    <div>
+                        <h3 className="text-lg font-semibold">
+                            Self-portrait & appearance
+                        </h3>
+                        <p className="text-sm text-slate-400">
+                            Upload a photo of yourself — the clone analyses it
+                            and enriches the identity summary automatically with
+                            details on appearance, style and mood.
+                        </p>
+                    </div>
+                    <MemoryImageGallery
+                        personaId={persona.id}
+                        title="Self photos"
+                        allowKinds={["self"]}
+                        defaultKind="self"
+                        compact
+                    />
+                </div>
+            )}
         </div>
     );
 }
