@@ -40,14 +40,14 @@ Whether you want an AI that answers customers in your voice, a digital twin for 
 - **Dark theme UI** — modern glass-morphism design with React, TypeScript, and Tailwind CSS
 - **Mobile responsive** — fully usable on phone and tablet
 
-![Version](https://img.shields.io/badge/version-0.1.6-blue)
+![Version](https://img.shields.io/badge/version-0.1.7-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Python](https://img.shields.io/badge/python-3.11+-yellow)
 ![TypeScript](https://img.shields.io/badge/typescript-5.x-blue)
 
 ---
 
-## Release 0.1.6
+## Release 0.1.7
 
 - Added **Memory Images** — upload photos and associate them to the clone's memory
     - Three image kinds: **self** (self-portrait), **person** (people you know), **memory** (scenes/places)
@@ -58,7 +58,7 @@ Whether you want an AI that answers customers in your voice, a digital twin for 
     - REST API: upload, list, serve raw bytes, patch metadata, trigger re-analysis, delete
 - Added new `memory_images` table with Alembic migration
 
-## Release 0.1.5 (previous)
+## Release 0.1.6 (previous)
 
 - **Extensions** — Telegram, Discord, and WhatsApp integrations with per-chat history and auto-resume
 - **Writing Style Profiling** — grammar, punctuation, capitalization, emoji fingerprints injected into clone responses
@@ -83,10 +83,10 @@ Whether you want an AI that answers customers in your voice, a digital twin for 
 ## Architecture
 
 ```
-┌─────────────┐     ┌──────────────┐     ┌─────────────┐
-│   Frontend   │────▶│   Backend    │────▶│  PostgreSQL  │
-│  React+Vite  │     │   FastAPI    │     │  (pgvector)  │
-└─────────────┘     └──────┬───────┘     └─────────────┘
+┌─────────────┐     ┌──────────────┐      ┌─────────────┐
+│   Frontend  │────▶│   Backend    │────▶│  PostgreSQL │
+│  React+Vite │     │   FastAPI    │      │  (pgvector) │
+└─────────────┘     └──────┬───────┘      └─────────────┘
                            │
                     ┌──────┴───────┐
                     │              │
