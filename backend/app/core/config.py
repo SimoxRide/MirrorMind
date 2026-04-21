@@ -71,7 +71,7 @@ class Settings(BaseSettings):
     openai_api_base: str = (
         ""  # Leave empty for official OpenAI, or set to e.g. http://localhost:11434/v1
     )
-    openai_model: str = "gpt-4o"
+    openai_model: str = "gpt-5.4"
     openai_embedding_model: str = "text-embedding-3-small"
 
     # --- CORS ---
